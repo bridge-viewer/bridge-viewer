@@ -1,0 +1,254 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>桥梁地形云图在线查看器</title>
+  <style>
+    body { margin:0; background:#cccccc; font-family:Arial, "Microsoft YaHei", sans-serif; }
+    header { position:fixed; top:0; left:0; right:0; height:44px; display:flex; gap:8px; align-items:center;
+             padding:6px 10px; background:rgba(255,255,255,.92); z-index:10; box-shadow:0 1px 6px rgba(0,0,0,.08); }
+    select, button, input[type=range] { font-size:14px; }
+    select, button { padding:4px 8px; }
+    #container { position:fixed; inset:0; top:44px; }
+    #hud { position:fixed; top:52px; left:10px; background:rgba(0,0,0,.55); color:#fff; padding:6px 10px; border-radius:6px; font-size:13px; white-space:pre; }
+    #legend { position:fixed; right:20px; top:76px; width:20px; height:200px; border:1px solid #888; background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000); }
+    #axisCanvas { position:fixed; right:20px; bottom:20px; width:100px; height:100px; background:transparent; }
+    .sep { width:1px; height:22px; background:#d0d0d0; margin:0 4px; }
+    .muted { color:#666; }
+    .btn { background:#f3f3f3; border:1px solid #cfcfcf; border-radius:6px; }
+    .btn-toggle[aria-pressed="true"]{ background:#315cf0; color:#fff; border-color:#315cf0; }
+  </style>
+  <script type="importmap">{
+    "imports": {
+      "three": "./three.module.js"
+    }
+  }</script>
+</head>
+<body>
+  <header>
+    <!-- 新增：桥梁与时间选择（最左侧） -->
+    <label>桥梁：</label>
+    <select id="bridgeSel"></select>
+    <label>时间：</label>
+    <select id="dateSel"></select>
+    <button id="loadBtn" class="btn">加载</button>
+    <div class="sep"></div>
+
+    <!-- 以下是你原有的控制（保留样式/逻辑） -->
+    <label><input type="checkbox" id="pointMode"> 点显示</label>
+    <label>点大小 <input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5"></label>
+    <button id="pickBtn" class="btn btn-toggle" aria-pressed="false" title="单击拾取点">拾取</button>
+    <button id="measureBtn" class="btn btn-toggle" aria-pressed="false" title="两点测距">测距</button>
+    <button id="clearBtn" class="btn">清除</button>
+    <span id="status" class="muted" style="margin-left:auto">就绪</span>
+  </header>
+
+  <div id="container"></div>
+  <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
+  <div id="legend" title="示意色带"></div>
+  <canvas id="axisCanvas"></canvas>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from './OrbitControls.js';
+    import { PLYLoader } from './PLYLoader.js';
+
+    // ===== 场景基础（保持原灰底与光照风格） =====
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xcccccc);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-44), 0.1, 100000);
+    camera.position.set(100,100,100);
+
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight-44);
+    document.getElementById('container').appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.9);
+    dir.position.set(120, 220, 120);
+    scene.add(dir);
+
+    const root = new THREE.Group();
+    scene.add(root);
+
+    const axesHelper = new THREE.AxesHelper(50);
+    scene.add(axesHelper);
+
+    // 右下角稳定坐标系（沿用原思路：相机姿态逆）
+    const axisScene = new THREE.Scene();
+    const axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+    axisCamera.position.set(0,0,2);
+    const axisRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('axisCanvas'), alpha:true, antialias:true });
+    axisRenderer.setSize(100,100);
+    axisScene.add(new THREE.AxesHelper(1.2));
+
+    // ===== UI元素 =====
+    const status = document.getElementById('status');
+    const hud = document.getElementById('hud');
+    const pointMode = document.getElementById('pointMode');
+    const pointSize = document.getElementById('pointSize');
+    const pickBtn = document.getElementById('pickBtn');
+    const measureBtn = document.getElementById('measureBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // ===== 变量 =====
+    const loader = new PLYLoader();
+    let currentObj = null;
+    let measureA = null, measureB = null, measureLine = null;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    function setToggle(btn, on){ btn.setAttribute('aria-pressed', on? 'true':'false'); }
+    function isOn(btn){ return btn.getAttribute('aria-pressed') === 'true'; }
+
+    function fitObject(obj){
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x,size.y,size.z) || 1;
+      const dist = maxDim/(2*Math.tan(Math.PI*camera.fov/360));
+      camera.position.copy(center.clone().add(new THREE.Vector3(1,1,1).normalize().multiplyScalar(dist*2)));
+      controls.target.copy(center); controls.update();
+      camera.near = Math.max(0.01, dist/1000); camera.far = dist*10000; camera.updateProjectionMatrix();
+    }
+
+    function clearMeasure(){
+      measureA = measureB = null;
+      if (measureLine){ root.remove(measureLine); measureLine.geometry.dispose(); measureLine.material.dispose(); measureLine = null; }
+    }
+
+    function clearScene(){
+      if (currentObj){
+        root.remove(currentObj);
+        currentObj.geometry?.dispose?.();
+        currentObj.material?.dispose?.();
+        currentObj = null;
+      }
+      clearMeasure();
+      hud.textContent = '提示：启用“拾取”或“测距”后，在模型上点击。';
+    }
+
+    // ===== 从 URL 加载 PLY（替代本地上传；沿用你的点/网格风格） =====
+    async function loadPLY(url){
+      status.textContent = '加载中...';
+      clearScene();
+      loader.load(url, (geometry)=>{
+        geometry.computeBoundingBox?.();
+        const hasColor = !!geometry.getAttribute('color');
+
+        // 点模式：Points + 顶点色；网格模式：MeshBasic + 线框，灰底下更清晰
+        const material = pointMode.checked
+          ? new THREE.PointsMaterial({ size: parseFloat(pointSize.value), vertexColors: hasColor })
+          : new THREE.MeshBasicMaterial({ color: 0xdddddd, wireframe: true });
+
+        currentObj = pointMode.checked ? new THREE.Points(geometry, material) : new THREE.Mesh(geometry, material);
+        root.add(currentObj);
+        fitObject(currentObj);
+        status.textContent = '加载完成';
+      }, (xhr)=>{
+        if (xhr.total) status.textContent = '下载 ' + (xhr.loaded/xhr.total*100).toFixed(1) + '%';
+      }, (err)=>{
+        console.error(err);
+        status.textContent = '加载失败，请检查路径';
+      });
+    }
+
+    pointSize.addEventListener('input', ()=>{
+      if (currentObj && currentObj.material && currentObj.material.size !== undefined){
+        currentObj.material.size = parseFloat(pointSize.value);
+      }
+    });
+
+    // ===== 拾取 & 测距（保持原交互） =====
+    renderer.domElement.addEventListener('pointerdown', (e)=>{
+      if (!currentObj) return;
+      if (!isOn(pickBtn) && !isOn(measureBtn)) return;
+
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
+
+      const hits = raycaster.intersectObject(currentObj, true);
+      if (!hits.length) return;
+
+      const p = hits[0].point.clone();
+
+      if (isOn(pickBtn)){
+        hud.textContent = `拾取\nX: ${p.x.toFixed(3)}\nY: ${p.y.toFixed(3)}\nZ: ${p.z.toFixed(3)}`;
+      }
+
+      if (isOn(measureBtn)){
+        if (!measureA){
+          measureA = p.clone();
+          hud.textContent = `测距(A)\nX:${measureA.x.toFixed(3)} Y:${measureA.y.toFixed(3)} Z:${measureA.z.toFixed(3)}`;
+        } else if (!measureB){
+          measureB = p.clone();
+          const dx = measureB.x - measureA.x;
+          const dy = measureB.y - measureA.y;
+          const dz = measureB.z - measureA.z;
+          const d = Math.sqrt(dx*dx + dy*dy + dz*dz);
+          hud.textContent = `测距 A→B\nΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${d.toFixed(3)}`;
+          const geo = new THREE.BufferGeometry().setFromPoints([measureA, measureB]);
+          const mat = new THREE.LineBasicMaterial({ color: 0x00e0ff });
+          measureLine = new THREE.Line(geo, mat);
+          root.add(measureLine);
+        } else {
+          clearMeasure();
+          measureA = p.clone();
+          hud.textContent = `测距(A)\nX:${measureA.x.toFixed(3)} Y:${measureA.y.toFixed(3)} Z:${measureA.z.toFixed(3)}`;
+        }
+      }
+    });
+
+    pickBtn.addEventListener('click', ()=>{ setToggle(pickBtn, !isOn(pickBtn)); if (isOn(pickBtn)) setToggle(measureBtn,false); });
+    measureBtn.addEventListener('click', ()=>{ setToggle(measureBtn, !isOn(measureBtn)); if (isOn(measureBtn)) setToggle(pickBtn,false); });
+    clearBtn.addEventListener('click', ()=>{ clearMeasure(); hud.textContent='已清除测距/拾取结果'; });
+
+    // ===== index.json → 桥梁/时间下拉（相对路径版本） =====
+    let bridges=[], scenes=[];
+    async function loadIndex(){
+      const res = await fetch('./index.json?_=' + Date.now());
+      const data = await res.json();
+      bridges = data.bridges || []; scenes = data.scenes || [];
+      document.getElementById('bridgeSel').innerHTML = bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+      fillDates();
+    }
+    function fillDates(){
+      const bid = document.getElementById('bridgeSel').value;
+      const arr = scenes.filter(s=>s.bridgeId===bid);
+      document.getElementById('dateSel').innerHTML = arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');
+    }
+    document.getElementById('bridgeSel').addEventListener('change', fillDates);
+    document.getElementById('loadBtn').addEventListener('click', ()=>{
+      const id = document.getElementById('dateSel').value;
+      const s = scenes.find(x=>x.id===id);
+      if (s) loadPLY(s.plyUrl);
+    });
+
+    // ===== 自适应 & 渲染循环 =====
+    window.addEventListener('resize', ()=>{
+      camera.aspect = window.innerWidth/(window.innerHeight-44);
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight-44);
+    });
+
+    (function animate(){
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+      axisCamera.quaternion.copy(camera.quaternion).invert();
+      axisRenderer.render(axisScene, axisCamera);
+    })();
+
+    // 初始化：读 index.json，默认选中第一条后你可点击“加载”
+    loadIndex();
+  </script>
+</body>
+</html>
