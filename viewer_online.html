@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>桥梁地形云图在线查看</title>
+  <style>
+    body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Microsoft YaHei", sans-serif; }
+    header { position: fixed; top: 0; left: 0; right: 0; background: rgba(255,255,255,0.92); padding: 8px 12px; display: flex; gap: 8px; align-items: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,.06); }
+    select, button { padding: 6px 8px; font-size: 14px; }
+    #status { margin-left: auto; font-size: 12px; color: #666; }
+    #container { position: fixed; inset: 0; top: 48px; }
+    #tip { position: fixed; right: 8px; bottom: 8px; background: rgba(0,0,0,.6); color:#fff; padding:6px 10px; border-radius: 6px; font-size: 12px; }
+  </style>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./three.module.js"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header>
+    <label>桥梁：</label>
+    <select id="bridgeSel"></select>
+    <label>时间：</label>
+    <select id="dateSel"></select>
+    <button id="reloadBtn">加载</button>
+    <span id="status">准备就绪</span>
+  </header>
+  <div id="container"></div>
+  <div id="tip">鼠标左键旋转，中键平移，滚轮缩放</div>
+
+  <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from './OrbitControls.js';
+    import { PLYLoader } from './PLYLoader.js';
+
+    const container = document.getElementById('container');
+    const bridgeSel = document.getElementById('bridgeSel');
+    const dateSel   = document.getElementById('dateSel');
+    const statusEl  = document.getElementById('status');
+    const reloadBtn = document.getElementById('reloadBtn');
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xf5f7fb);
+
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth / (window.innerHeight-48), 0.1, 100000);
+    camera.position.set(100, 100, 100);
+
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight - 48);
+    container.appendChild(renderer.domElement);
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const dir = new THREE.DirectionalLight(0xffffff, 0.8);
+    dir.position.set(200, 300, 200);
+    scene.add(dir);
+    scene.add(new THREE.AxesHelper(50));
+
+    const group = new THREE.Group();
+    scene.add(group);
+
+    function clearGroup() {
+      while (group.children.length) {
+        const obj = group.children.pop();
+        if (obj.geometry) obj.geometry.dispose();
+        if (obj.material) obj.material.dispose();
+      }
+    }
+
+    function fitToObject(obj) {
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x, size.y, size.z);
+      const fitDist = maxDim / (2 * Math.tan((Math.PI * camera.fov) / 360));
+      const dir = new THREE.Vector3(1,1,1).normalize();
+      camera.position.copy(center.clone().add(dir.multiplyScalar(fitDist * 1.5)));
+      camera.near = Math.max(0.01, fitDist / 100);
+      camera.far = fitDist * 1000 + 1000;
+      camera.updateProjectionMatrix();
+      controls.target.copy(center);
+      controls.update();
+    }
+
+    (function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    })();
+
+    let bridges = [];
+    let scenes  = [];
+
+    async function loadIndex() {
+      statusEl.textContent = '正在加载 index.json...';
+      const resp = await fetch('./index.json?_=' + Date.now());
+      const data = await resp.json();
+      bridges = data.bridges || [];
+      scenes  = data.scenes  || [];
+      bridgeSel.innerHTML = bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+      fillDates();
+      statusEl.textContent = 'index.json 加载完成';
+    }
+
+    function fillDates() {
+      const bid = bridgeSel.value || (bridges[0] && bridges[0].id) || '';
+      const arr = scenes.filter(s=>s.bridgeId===bid).sort((a,b)=>a.date.localeCompare(b.date));
+      dateSel.innerHTML   = arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');
+    }
+
+    bridgeSel.addEventListener('change', () => { fillDates(); });
+    reloadBtn.addEventListener('click', loadSelected);
+    dateSel.addEventListener('dblclick', loadSelected); // 双击时间也可加载
+
+    async function loadSelected() {
+      const sceneId = dateSel.value;
+      const s = scenes.find(x => x.id === sceneId);
+      if (!s) { statusEl.textContent='未找到场景'; return; }
+      await loadPLYFromURL(s.plyUrl);
+    }
+
+    const plyLoader = new PLYLoader();
+    async function loadPLYFromURL(url) {
+      statusEl.textContent = '正在加载 PLY：' + url;
+      clearGroup();
+      plyLoader.load(url, (geometry) => {
+        geometry.computeVertexNormals?.();
+        const hasColor = !!geometry.getAttribute('color');
+        const material = new THREE.PointsMaterial({ size: 1.2, vertexColors: hasColor });
+        const points = new THREE.Points(geometry, material);
+        group.add(points);
+        fitToObject(points);
+        statusEl.textContent = '加载完成';
+      }, (xhr) => {
+        if (xhr && xhr.total) {
+          const pct = (xhr.loaded / xhr.total * 100).toFixed(1);
+          statusEl.textContent = '下载中 ' + pct + '%';
+        } else {
+          statusEl.textContent = '下载中...';
+        }
+      }, (err) => {
+        console.error(err);
+        statusEl.textContent = '加载失败，请检查 URL 或 CORS';
+      });
+    }
+
+    await loadIndex();
+    // 默认加载第一条
+    const firstBridge = bridges[0]; 
+    if (firstBridge) {
+      const firstScene = scenes.find(s=>s.bridgeId===firstBridge.id);
+      if (firstScene) await loadPLYFromURL(firstScene.plyUrl);
+    }
+
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / (window.innerHeight - 48);
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight - 48);
+    });
+  </script>
+</body>
+</html>
