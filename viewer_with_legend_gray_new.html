@@ -86,17 +86,21 @@
 
     // === 删除大坐标系（axesHelper），仅保留右下角小坐标系 ===
 
-    // ===== 右下角小坐标系（可点击） =====
-    const axisScene   = new THREE.Scene();
-    const axisCamera  = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
-    axisCamera.position.set(0,0,2);
+    // ===== 右下角小坐标系（原点钉死在圆心，可点击） =====
+    const axisScene  = new THREE.Scene();
+    const axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+    // 相机固定：始终在(0,0,2)，看向原点
+    axisCamera.position.set(0, 0, 2);
+    axisCamera.up.set(0, 1, 0);
+    axisCamera.lookAt(0, 0, 0);
+
     const axisRenderer = new THREE.WebGLRenderer({
       canvas: document.getElementById('axisCanvas'),
       alpha:true, antialias:true
     });
     axisRenderer.setSize(110,110);
 
-    // 小坐标系：箭头（ArrowHelper）+ 文字标签（Sprite）
+    // 小坐标系对象
     const mini = new THREE.Group(); axisScene.add(mini);
 
     function makeLabelSprite(text, color){
@@ -113,17 +117,15 @@
       const tex = new THREE.CanvasTexture(cvs);
       const mat = new THREE.SpriteMaterial({ map: tex, transparent:true });
       const sp = new THREE.Sprite(mat);
-      sp.scale.set(0.6,0.6,0.6); // 适配尺寸
+      sp.scale.set(0.6,0.6,0.6);
       return sp;
     }
-
     function addAxis(dir, color, name){
       const len = 1.1, headLen = 0.28, headWid = 0.18;
       const ah = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), len, color, headLen, headWid);
       ah.userData.axis = name;
       ah.name = 'axis_'+name;
       mini.add(ah);
-      // 标签
       const sp = makeLabelSprite(name, '#ffffff');
       sp.position.copy(dir.clone().multiplyScalar(1.35));
       sp.userData.axis = name;
@@ -338,6 +340,10 @@
       camera.aspect = window.innerWidth/(window.innerHeight-44);
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight-44);
+      // 保底：小坐标系相机复位
+      axisCamera.position.set(0, 0, 2);
+      axisCamera.up.set(0, 1, 0);
+      axisCamera.lookAt(0, 0, 0);
     });
 
     (function animate(){
@@ -345,13 +351,14 @@
       controls.update();
       renderer.render(scene, camera);
 
-      // --- 小坐标系固定在圆心 ---
-      mini.position.set(0,0,0);                 // 坐标系几何永远在(0,0,0)
-      axisCamera.position.set(0,0,2);            // 相机永远离原点2个单位
-      axisCamera.quaternion.copy(camera.quaternion).invert(); // 只旋转，不平移
+      // —— 小坐标系钉在圆心：转“对象”，不转相机 ——
+      mini.position.set(0, 0, 0);              // 原点固定在圆心
+      mini.quaternion.copy(camera.quaternion); // 跟随主相机旋转
+      axisCamera.position.set(0, 0, 2);        // 相机固定
+      axisCamera.up.set(0, 1, 0);
+      axisCamera.lookAt(0, 0, 0);
       axisRenderer.render(axisScene, axisCamera);
     })();
-    
 
     loadIndex();
   </script>
