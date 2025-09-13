@@ -18,55 +18,55 @@
       "id": "qingyijiang_20250701",
       "bridgeId": "qingyijiang",
       "date": "2025-07-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/qingyijiang/2025-07-01/cloud.ply"
+      "plyUrl": "./data/qingyijiang/2025-07-01/cloud.ply"
     },
     {
       "id": "qingyijiang_20250801",
       "bridgeId": "qingyijiang",
       "date": "2025-08-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/qingyijiang/2025-08-01/cloud.ply"
+      "plyUrl": "./data/qingyijiang/2025-08-01/cloud.ply"
     },
     {
       "id": "qingyijiang_20250901",
       "bridgeId": "qingyijiang",
       "date": "2025-09-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/qingyijiang/2025-09-01/cloud.ply"
+      "plyUrl": "./data/qingyijiang/2025-09-01/cloud.ply"
     },
     {
       "id": "xiaorenyan1_20250701",
       "bridgeId": "xiaorenyan1",
       "date": "2025-07-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/xiaorenyan1/2025-07-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan1/2025-07-01/cloud.ply"
     },
     {
       "id": "xiaorenyan1_20250801",
       "bridgeId": "xiaorenyan1",
       "date": "2025-08-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/xiaorenyan1/2025-08-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan1/2025-08-01/cloud.ply"
     },
     {
       "id": "xiaorenyan1_20250901",
       "bridgeId": "xiaorenyan1",
       "date": "2025-09-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/xiaorenyan1/2025-09-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan1/2025-09-01/cloud.ply"
     },
     {
       "id": "xiaorenyan2_20250701",
       "bridgeId": "xiaorenyan2",
       "date": "2025-07-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/xiaorenyan2/2025-07-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan2/2025-07-01/cloud.ply"
     },
     {
       "id": "xiaorenyan2_20250801",
       "bridgeId": "xiaorenyan2",
       "date": "2025-08-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/xiaorenyan2/2025-08-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan2/2025-08-01/cloud.ply"
     },
     {
       "id": "xiaorenyan2_20250901",
       "bridgeId": "xiaorenyan2",
       "date": "2025-09-01",
-      "plyUrl": "https://<你的桶名>.obs.<区域>.myhuaweicloud.com/bridges/xiaorenyan2/2025-09-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan2/2025-09-01/cloud.ply"
     }
   ]
 }
