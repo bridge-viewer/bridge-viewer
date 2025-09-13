@@ -345,10 +345,13 @@
       controls.update();
       renderer.render(scene, camera);
 
-      // 小坐标系跟随：主相机四元数取反
-      axisCamera.quaternion.copy(camera.quaternion).invert();
+      // --- 小坐标系固定在圆心 ---
+      mini.position.set(0,0,0);                 // 坐标系几何永远在(0,0,0)
+      axisCamera.position.set(0,0,2);            // 相机永远离原点2个单位
+      axisCamera.quaternion.copy(camera.quaternion).invert(); // 只旋转，不平移
       axisRenderer.render(axisScene, axisCamera);
     })();
+    
 
     loadIndex();
   </script>
