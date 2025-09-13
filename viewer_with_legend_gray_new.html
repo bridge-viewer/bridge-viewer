@@ -12,7 +12,8 @@
     select, button { padding:4px 8px; }
     #container { position:fixed; inset:0; top:44px; }
     #hud { position:fixed; top:52px; left:10px; background:rgba(0,0,0,.55); color:#fff; padding:6px 10px; border-radius:6px; font-size:13px; white-space:pre; }
-    #legend { position:fixed; right:20px; top:76px; width:20px; height:200px; border:1px solid #888; background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000); }
+    #legend { position:fixed; right:20px; top:76px; width:20px; height:200px; border:1px solid #888;
+              background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000); }
     #axisCanvas { position:fixed; right:20px; bottom:20px; width:100px; height:100px; background:transparent; }
     .sep { width:1px; height:22px; background:#d0d0d0; margin:0 4px; }
     .muted { color:#666; }
@@ -27,7 +28,7 @@
 </head>
 <body>
   <header>
-    <!-- 新增：桥梁与时间选择（最左侧） -->
+    <!-- 桥梁 + 时间（远程加载） -->
     <label>桥梁：</label>
     <select id="bridgeSel"></select>
     <label>时间：</label>
@@ -35,8 +36,8 @@
     <button id="loadBtn" class="btn">加载</button>
     <div class="sep"></div>
 
-    <!-- 以下是你原有的控制（保留样式/逻辑） -->
-    <label><input type="checkbox" id="pointMode"> 点显示</label>
+    <!-- 点 / 网格切换（保留你的交互） -->
+    <label><input type="checkbox" id="pointMode" checked> 点显示</label>
     <label>点大小 <input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5"></label>
     <button id="pickBtn" class="btn btn-toggle" aria-pressed="false" title="单击拾取点">拾取</button>
     <button id="measureBtn" class="btn btn-toggle" aria-pressed="false" title="两点测距">测距</button>
@@ -54,7 +55,7 @@
     import { OrbitControls } from './OrbitControls.js';
     import { PLYLoader } from './PLYLoader.js';
 
-    // ===== 场景基础（保持原灰底与光照风格） =====
+    // ===== 场景基础（灰底 + 环境光/平行光，保持你原风格） =====
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcccccc);
 
@@ -80,7 +81,7 @@
     const axesHelper = new THREE.AxesHelper(50);
     scene.add(axesHelper);
 
-    // 右下角稳定坐标系（沿用原思路：相机姿态逆）
+    // 右下角稳定坐标系（主相机旋转的逆）
     const axisScene = new THREE.Scene();
     const axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
     axisCamera.position.set(0,0,2);
@@ -91,7 +92,7 @@
     // ===== UI元素 =====
     const status = document.getElementById('status');
     const hud = document.getElementById('hud');
-    const pointMode = document.getElementById('pointMode');
+    const pointMode = document.getElementById('pointMode');   // 勾选=点显示；不勾=网格
     const pointSize = document.getElementById('pointSize');
     const pickBtn = document.getElementById('pickBtn');
     const measureBtn = document.getElementById('measureBtn');
@@ -134,20 +135,32 @@
       hud.textContent = '提示：启用“拾取”或“测距”后，在模型上点击。';
     }
 
-    // ===== 从 URL 加载 PLY（替代本地上传；沿用你的点/网格风格） =====
+    // ===== 关键修复：根据勾选点/网格，分别使用正确的“带颜色”材质 =====
+    function makePoints(geometry){
+      const hasColor = !!geometry.getAttribute('color');
+      const mat = new THREE.PointsMaterial({ size: parseFloat(pointSize.value), vertexColors: hasColor });
+      return new THREE.Points(geometry, mat);
+    }
+
+    function makeMesh(geometry){
+      // 很多 PLY 的顶点色在索引几何上会共享，需要先展开到非索引
+      if (geometry.index) geometry = geometry.toNonIndexed();
+      // 网格光照用到法线
+      geometry.computeVertexNormals?.();
+      // 关键：启用顶点色；不要 wireframe
+      const mat = new THREE.MeshLambertMaterial({
+        vertexColors: true,
+        side: THREE.DoubleSide
+      });
+      return new THREE.Mesh(geometry, mat);
+    }
+
     async function loadPLY(url){
       status.textContent = '加载中...';
       clearScene();
       loader.load(url, (geometry)=>{
         geometry.computeBoundingBox?.();
-        const hasColor = !!geometry.getAttribute('color');
-
-        // 点模式：Points + 顶点色；网格模式：MeshBasic + 线框，灰底下更清晰
-        const material = pointMode.checked
-          ? new THREE.PointsMaterial({ size: parseFloat(pointSize.value), vertexColors: hasColor })
-          : new THREE.MeshBasicMaterial({ color: 0xdddddd, wireframe: true });
-
-        currentObj = pointMode.checked ? new THREE.Points(geometry, material) : new THREE.Mesh(geometry, material);
+        currentObj = pointMode.checked ? makePoints(geometry) : makeMesh(geometry);
         root.add(currentObj);
         fitObject(currentObj);
         status.textContent = '加载完成';
@@ -165,7 +178,7 @@
       }
     });
 
-    // ===== 拾取 & 测距（保持原交互） =====
+    // ===== 拾取 & 测距（保持你的交互） =====
     renderer.domElement.addEventListener('pointerdown', (e)=>{
       if (!currentObj) return;
       if (!isOn(pickBtn) && !isOn(measureBtn)) return;
@@ -211,7 +224,7 @@
     measureBtn.addEventListener('click', ()=>{ setToggle(measureBtn, !isOn(measureBtn)); if (isOn(measureBtn)) setToggle(pickBtn,false); });
     clearBtn.addEventListener('click', ()=>{ clearMeasure(); hud.textContent='已清除测距/拾取结果'; });
 
-    // ===== index.json → 桥梁/时间下拉（相对路径版本） =====
+    // ===== index.json → 桥梁/时间下拉（相对路径版） =====
     let bridges=[], scenes=[];
     async function loadIndex(){
       const res = await fetch('./index.json?_=' + Date.now());
@@ -247,7 +260,7 @@
       axisRenderer.render(axisScene, axisCamera);
     })();
 
-    // 初始化：读 index.json，默认选中第一条后你可点击“加载”
+    // 初始化：读 index.json
     loadIndex();
   </script>
 </body>
