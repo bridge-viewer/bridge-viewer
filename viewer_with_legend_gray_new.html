@@ -14,10 +14,10 @@
     #hud { position:fixed; top:52px; left:10px; background:rgba(0,0,0,.55); color:#fff; padding:6px 10px; border-radius:6px; font-size:13px; white-space:pre; }
     #legend { position:fixed; right:20px; top:76px; width:20px; height:200px; border:1px solid #888;
               background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000); }
-    /* 小坐标系：WebGL画布 + 2D外框叠加 */
-    #axisWrap { position:fixed; right:20px; bottom:20px; width:110px; height:110px; pointer-events:none; }
-    #axisCanvas { position:absolute; inset:0; width:110px; height:110px; background:transparent; pointer-events:auto; }
-    #axisRing   { position:absolute; inset:0; width:110px; height:110px; background:transparent; pointer-events:none; }
+    /* 小坐标系：WebGL画布 + 2D外框叠加（尺寸加倍为 220） */
+    #axisWrap  { position:fixed; right:20px; bottom:20px; width:220px; height:220px; pointer-events:none; }
+    #axisCanvas{ position:absolute; inset:0; width:220px; height:220px; background:transparent; pointer-events:auto; }
+    #axisRing  { position:absolute; inset:0; width:220px; height:220px; background:transparent; pointer-events:none; }
     .sep { width:1px; height:22px; background:#d0d0d0; margin:0 4px; }
     .muted { color:#666; }
     .btn { background:#f3f3f3; border:1px solid #cfcfcf; border-radius:6px; }
@@ -29,7 +29,6 @@
 </head>
 <body>
   <header>
-    <!-- 桥梁 + 时间（远程加载） -->
     <label>桥梁：</label>
     <select id="bridgeSel"></select>
     <label>时间：</label>
@@ -37,7 +36,6 @@
     <button id="loadBtn" class="btn">加载</button>
     <div class="sep"></div>
 
-    <!-- 点 / 网格切换 -->
     <label><input type="checkbox" id="pointMode" checked> 点显示</label>
     <label>点大小 <input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5"></label>
     <button id="pickBtn" class="btn btn-toggle" aria-pressed="false" title="单击拾取点">拾取</button>
@@ -50,10 +48,10 @@
   <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
   <div id="legend" title="示意色带"></div>
 
-  <!-- 小坐标系容器：WebGL + 2D外框 -->
+  <!-- 小坐标系容器 -->
   <div id="axisWrap">
-    <canvas id="axisCanvas" width="110" height="110"></canvas>
-    <canvas id="axisRing"   width="110" height="110"></canvas>
+    <canvas id="axisCanvas" width="220" height="220"></canvas>
+    <canvas id="axisRing"   width="220" height="220"></canvas>
   </div>
 
   <script type="module">
@@ -72,7 +70,7 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight-44);
     document.getElementById('container').appendChild(renderer.domElement);
-    renderer.domElement.tabIndex = 0; // 允许聚焦：点击小坐标系后能马上拖动主视图
+    renderer.domElement.tabIndex = 0;
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -85,12 +83,12 @@
     const root = new THREE.Group();
     scene.add(root);
 
-    // ===== 右下角小坐标系（正交相机：大小不随视角变化；原点钉在圆心） =====
+    // ===== 右下角小坐标系（正交相机，大小不随视角变化） =====
     const axisScene  = new THREE.Scene();
 
-    const AXIS_CANVAS_SIZE = 110; // 画布像素
-    const AXIS_UNITS = 2.2;       // 正交相机视体尺寸（调大=看起来更小）
-    let axisCamera = new THREE.OrthographicCamera(
+    const AXIS_CANVAS_SIZE = 220; // 加倍
+    const AXIS_UNITS = 2.2;       // 正交视体尺寸（一般不用改）
+    const axisCamera = new THREE.OrthographicCamera(
       -AXIS_UNITS, AXIS_UNITS, AXIS_UNITS, -AXIS_UNITS, -10, 10
     );
     axisCamera.position.set(0, 0, 2);
@@ -105,15 +103,14 @@
 
     const mini = new THREE.Group();
     axisScene.add(mini);
-    mini.scale.set(0.85, 0.85, 0.85); // 整体缩放，适配圆圈
+    mini.scale.set(0.85, 0.85, 0.85); // 保持在圆内
 
     function makeLabelSprite(text, color){
       const cvs = document.createElement('canvas');
       const s = 128; cvs.width = cvs.height = s;
       const ctx = cvs.getContext('2d');
-      ctx.fillStyle = 'rgba(0,0,0,0)';
-      ctx.fillRect(0,0,s,s);
-      ctx.fillStyle = color;
+      ctx.clearRect(0,0,s,s);
+      ctx.fillStyle = color;                // 黑色字体
       ctx.font = 'bold 72px Arial';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
@@ -121,17 +118,18 @@
       const tex = new THREE.CanvasTexture(cvs);
       const mat = new THREE.SpriteMaterial({ map: tex, transparent:true });
       const sp = new THREE.Sprite(mat);
-      sp.scale.set(0.45, 0.45, 0.45);
+      sp.scale.set(0.90, 0.90, 0.90);       // 字体尺寸 ×2（原 0.45）
       return sp;
     }
     function addAxis(dir, color, name){
-      const len = 0.90, headLen = 0.22, headWid = 0.14;
+      // 轴长度 ×1.5（原 len 0.90 / headLen 0.22 / headWid 0.14）
+      const len = 1.35, headLen = 0.33, headWid = 0.21;
       const ah = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), len, color, headLen, headWid);
       ah.userData.axis = name;
       ah.name = 'axis_'+name;
       mini.add(ah);
-      const sp = makeLabelSprite(name, '#ffffff');
-      sp.position.copy(dir.clone().multiplyScalar(1.12));
+      const sp = makeLabelSprite(name, '#000000'); // 黑色
+      sp.position.copy(dir.clone().multiplyScalar(1.50)); // 跟随加长后的轴端
       sp.userData.axis = name;
       mini.add(sp);
     }
@@ -139,21 +137,21 @@
     addAxis(new THREE.Vector3(0,1,0), 0x44ff44, 'Y');
     addAxis(new THREE.Vector3(0,0,1), 0x4488ff, 'Z');
 
-    // 圆形外框（2D 画布描边）
+    // 圆形外框（尺寸加倍，线宽加粗）
     const ring = document.getElementById('axisRing');
     const rctx = ring.getContext('2d');
     function drawRing(){
       const w = ring.width, h = ring.height;
       rctx.clearRect(0,0,w,h);
       rctx.beginPath();
-      rctx.arc(w/2, h/2, Math.min(w,h)/2 - 6, 0, Math.PI*2);
+      rctx.arc(w/2, h/2, Math.min(w,h)/2 - 10, 0, Math.PI*2); // 留更宽边距
       rctx.strokeStyle = 'rgba(0,0,0,0.45)';
-      rctx.lineWidth = 4;
+      rctx.lineWidth = 6;
       rctx.stroke();
     }
     drawRing();
 
-    // 点击小坐标系：将视角对正到 X/Y/Z 轴，并把焦点交回主画布
+    // 点击小坐标系：对正视图
     const axisCanvas = document.getElementById('axisCanvas');
     const axisRay = new THREE.Raycaster();
     const axisMouse = new THREE.Vector2();
@@ -170,8 +168,7 @@
       snapToAxis(axis);
       try { axisCanvas.releasePointerCapture(e.pointerId); } catch(_) {}
       renderer.domElement.focus();
-      e.preventDefault();
-      e.stopPropagation();
+      e.preventDefault(); e.stopPropagation();
     });
 
     function getSceneCenter(){
@@ -189,7 +186,7 @@
       let up  = new THREE.Vector3(0,0,1); // 默认Z向上
       if(axis==='X'){ pos.set(dist,0,0); up.set(0,0,1); }
       if(axis==='Y'){ pos.set(0,dist,0); up.set(0,0,1); }
-      if(axis==='Z'){ pos.set(0,0,dist); up.set(0,1,0); } // 俯视时保证Y向上
+      if(axis==='Z'){ pos.set(0,0,dist); up.set(0,1,0); } // 俯视时Y向上
       camera.up.copy(up);
       camera.position.copy(center.clone().add(pos));
       controls.target.copy(center);
@@ -199,7 +196,7 @@
     // ===== UI元素 =====
     const status = document.getElementById('status');
     const hud = document.getElementById('hud');
-    const pointMode = document.getElementById('pointMode');   // 勾选=点显示；不勾=网格
+    const pointMode = document.getElementById('pointMode');
     const pointSize = document.getElementById('pointSize');
     const pickBtn = document.getElementById('pickBtn');
     const measureBtn = document.getElementById('measureBtn');
@@ -349,7 +346,6 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight-44);
 
-      // 若你改了 AXIS_CANVAS_SIZE 或 AXIS_UNITS，可在此同步
       axisRenderer.setSize(AXIS_CANVAS_SIZE, AXIS_CANVAS_SIZE);
       axisCamera.left   = -AXIS_UNITS;
       axisCamera.right  =  AXIS_UNITS;
