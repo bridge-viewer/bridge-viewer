@@ -6,26 +6,24 @@
 <title>桥梁地形云图在线查看器</title>
 <style>
 :root{
-  --bg:#ececec; --panel:#ffffffee; --text:#222; --muted:#667085;
+  --bg:#cccccc;            /* 场景与图例背景保持一致 */
+  --panel:#ffffffee; --text:#222; --muted:#667085;
   --primary:#315cf0; --primary-weak:#e7ecff; --border:#d9d9d9; --shadow:0 6px 20px rgba(0,0,0,.08);
   --safe-b: env(safe-area-inset-bottom, 12px);
 }
 *{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei",sans-serif;color:var(--text);}
 
-/* 顶栏 + 工具栏（两行，自适应） */
-#topbar{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;padding:10px 12px;
-  background:var(--panel);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
-#logo{width:32px;height:32px;border-radius:50%;object-fit:contain}
+/* 顶栏 + 工具栏 */
+#topbar{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
+#logo{width:32px;height:32px;border-radius:50%}
 #title{font-size:16px;font-weight:700}
 #brand{margin-left:auto;display:flex;align-items:center;gap:8px}
 #brand img{width:36px;height:36px;border-radius:50%}
 #brand .name{font-weight:700;color:#22314a;font-size:14px}
 
-#toolbar{position:sticky;top:54px;z-index:25;display:grid;grid-template-columns:repeat(12,1fr);gap:8px;
-  padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
+#toolbar{position:sticky;top:54px;z-index:25;display:grid;grid-template-columns:repeat(12,1fr);gap:8px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
 .row{display:contents}
-.group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);
-  border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
+.group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
 .group label{font-size:13px;color:var(--muted)}
 select,button,input[type=range]{font-size:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);padding:6px 10px}
 select{min-width:140px} button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
@@ -39,27 +37,42 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 #container{position:fixed;inset:0;top:128px}
 
 /* 底部 HUD / 水印 / 小坐标系：永远在可视底部（手机也可见） */
-#hud{position:fixed;left:12px;bottom:var(--safe-b);transform:translateY(-6px);
-  background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:24}
+#hud{position:fixed;left:12px;bottom:var(--safe-b);transform:translateY(-6px);background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:24}
 #wm{position:fixed;left:12px;bottom:calc(var(--safe-b) + 64px);opacity:.10;z-index:10;pointer-events:none}
 #wm img{width:96px;height:96px;object-fit:contain}
 #axisWrap{position:fixed;right:12px;bottom:var(--safe-b);width:160px;height:160px;pointer-events:none;z-index:24}
 #axisCanvas{position:absolute;inset:0;width:160px;height:160px;background:transparent;pointer-events:auto}
 
-/* 加载百分比（底部浮条，手机也看得到） */
-#progress{position:fixed;left:50%;bottom:calc(var(--safe-b) + 8px);transform:translate(-50%,-4px);
-  background:rgba(0,0,0,.7);color:#fff;padding:4px 10px;border-radius:999px;font-size:12px;z-index:28;display:none}
-
-/* 左侧图例：位于工具栏和底部 HUD 之间（视觉上居中） */
-#legendDock{
-  position:fixed;left:12px;top:50%;transform:translateY(-50%);z-index:22;
-  display:flex;flex-direction:column;align-items:flex-start;gap:6px;pointer-events:none;
+/* 居中加载进度条 */
+#progressWrap{
+  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
+  min-width:240px; padding:12px 16px; background:rgba(0,0,0,.7); color:#fff;
+  border-radius:12px; z-index:40; display:none; text-align:center;
+  box-shadow:0 8px 30px rgba(0,0,0,.25);
 }
-#legendTitle{font-size:12px;color:#333;background:#fff;padding:4px 6px;border-radius:6px;border:1px solid var(--border);box-shadow:var(--shadow)}
-#legendWrap{display:flex;align-items:flex-start;gap:8px;background:#fff;border:1px solid #bdbdbd;border-radius:6px;padding:6px 6px;box-shadow:var(--shadow);pointer-events:auto}
-#legend{display:block;width:24px;height:240px;border:1px solid #888}
-#legendTicks{display:flex;flex-direction:column;gap:0;font-size:12px;color:#333;line-height:1}
-#legendTicks div{height:calc(240px/10);display:flex;align-items:center;justify-content:flex-end;width:60px}
+#progressBar{width:100%; height:10px; background:rgba(255,255,255,.25); border-radius:999px; overflow:hidden; margin-top:8px}
+#progressFill{height:100%; width:0%; background:#4ad5ff; border-radius:999px; transition:width .2s ease}
+
+/* 左侧图例：背景匹配场景色；刻度 Times New Roman，靠近色带并置于其左侧 */
+#legendDock{
+  position:fixed; left:12px; top:50%; transform:translateY(-50%); z-index:22;
+  display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none;
+}
+#legendTitle{
+  font-size:12px; color:#333; background:var(--bg); padding:4px 6px; border-radius:6px;
+  border:1px solid rgba(0,0,0,.2);
+}
+#legendWrap{
+  display:flex; align-items:flex-start; gap:6px;
+  background:var(--bg); border:1px solid rgba(0,0,0,.25);
+  border-radius:6px; padding:6px; pointer-events:auto;
+}
+#legend{display:block; width:24px; height:240px; border:1px solid #888}
+#legendTicks{
+  display:flex; flex-direction:column; gap:0; font-size:12px; color:#000;
+  font-family:"Times New Roman", Times, serif; line-height:1; width:46px; text-align:right;
+}
+#legendTicks div{height:calc(240px/10); display:flex; align-items:center; justify-content:flex-end; padding-right:2px}
 
 /* 顶部状态文本（仍保留） */
 #status{margin-left:auto}
@@ -103,14 +116,19 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
   <aside id="legendDock">
     <div id="legendTitle">水深 / m</div>
     <div id="legendWrap">
-      <canvas id="legend" width="24" height="240"></canvas>
       <div id="legendTicks"></div>
+      <canvas id="legend" width="24" height="240"></canvas>
     </div>
   </aside>
 
-  <!-- 底部 HUD / 加载百分比 / 小坐标系 / 水印 -->
+  <!-- 居中进度条 -->
+  <div id="progressWrap">
+    <div id="progressText">加载中…</div>
+    <div id="progressBar"><div id="progressFill"></div></div>
+  </div>
+
+  <!-- 底部 HUD / 小坐标系 / 水印 -->
   <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
-  <div id="progress">0%</div>
   <div id="axisWrap"><canvas id="axisCanvas" width="160" height="160"></canvas></div>
   <div id="wm"><img src="./logo.png" alt="长安大学水印"/></div>
 
@@ -121,7 +139,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     /* 场景 */
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xcccccc);
+    scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
     camera.position.set(100,100,100);
 
@@ -139,7 +157,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     const root = new THREE.Group(); scene.add(root);
 
-    /* 小坐标系（正交，无圆圈） */
+    /* 小坐标系（正交） */
     const axisScene = new THREE.Scene();
     const AXIS_UNITS = 2.2;
     const axisCamera = new THREE.OrthographicCamera(-AXIS_UNITS, AXIS_UNITS, AXIS_UNITS, -AXIS_UNITS, -10, 10);
@@ -154,28 +172,30 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const ah=new THREE.ArrowHelper(dir,new THREE.Vector3(0,0,0),len,color,headLen,headWid); mini.add(ah);
       const sp=makeLabelSprite(name,'#000'); sp.scale.set(0.9,0.9,0.9); sp.position.copy(dir.clone().multiplyScalar(1.5)); mini.add(sp);}
     addAxis(new THREE.Vector3(1,0,0),0xff4444,'X'); addAxis(new THREE.Vector3(0,1,0),0x44ff44,'Y'); addAxis(new THREE.Vector3(0,0,1),0x4488ff,'Z');
-    const axisCanvas=document.getElementById('axisCanvas'); const axisRay=new THREE.Raycaster(), axisMouse=new THREE.Vector2();
-    axisCanvas.addEventListener('pointerdown',(e)=>{const r=axisCanvas.getBoundingClientRect();
-      axisMouse.x=((e.clientX-r.left)/r.width)*2-1; axisMouse.y=-((e.clientY-r.top)/r.height)*2+1;
-      axisRay.setFromCamera(axisMouse,axisCamera); const h=axisRay.intersectObjects(mini.children,true); if(!h.length) return;
-      const m=h.find(x=>x.object.type==='Sprite'); const n=m?'Z':(h[0].object===undefined?'Z':(h[0].object.userData.axis||h[0].object.name?.slice(-1)||'Z'));
-      snapToAxis(n); renderer.domElement.focus(); e.preventDefault(); e.stopPropagation(); });
 
     /* UI */
-    const statusEl=document.getElementById('status'), progressEl=document.getElementById('progress');
-    const hud=document.getElementById('hud'), pointSize=document.getElementById('pointSize');
-    const modeBtn=document.getElementById('modeBtn'), pickBtn=document.getElementById('pickBtn'), measureBtn=document.getElementById('measureBtn'), clearBtn=document.getElementById('clearBtn');
+    const statusEl=document.getElementById('status');
+    const hud=document.getElementById('hud');
+    const pointSize=document.getElementById('pointSize');
+    const modeBtn=document.getElementById('modeBtn');
+    const pickBtn=document.getElementById('pickBtn');
+    const measureBtn=document.getElementById('measureBtn');
+    const clearBtn=document.getElementById('clearBtn');
+
+    // 居中进度
+    const progressWrap = document.getElementById('progressWrap');
+    const progressText = document.getElementById('progressText');
+    const progressFill = document.getElementById('progressFill');
 
     /* 变量 */
     const loader=new PLYLoader(); let currentObj=null, asPoints=false;
     let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
     let pickMarker=null; const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
 
-    /* 图例：按你给的样式（-4 ~ -10，10段离散，有描边） */
+    /* 图例：固定“水深 / m”，-10~-4，10 段离散（可被 *.legend.json 覆盖范围与颜色） */
     const legendCv=document.getElementById('legend'); const lctx=legendCv.getContext('2d'); const ticksEl=document.getElementById('legendTicks');
-    // 默认：水深 / m，范围 -10 ~ -4（顶部为 -4，底部为 -10）
     let legendSpec = {
-      min:-10.0, max:-4.0,  // bottom to top
+      min:-10.0, max:-4.0,
       colors: ['#0010a8','#123fdf','#1491ff','#18cfff','#18fffb','#55ff13','#c7ff00','#ffd200','#ff7a00','#e10000'] // 底→顶
     };
     function drawLegendDiscrete(){
@@ -187,7 +207,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         lctx.fillRect(0, y, w, seg);
         lctx.strokeStyle="#888"; lctx.lineWidth=1; lctx.strokeRect(0, y, w, seg);
       }
-      // 刻度文本（10个）：-4.000 到 -10.000 等距
       ticksEl.innerHTML='';
       const ticks=10, top=legendSpec.max, bot=legendSpec.min;
       for(let i=0;i<ticks;i++){
@@ -197,7 +216,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     }
     drawLegendDiscrete();
 
-    // 若存在 *.legend.json 仍可加载（只覆盖范围与颜色，标题固定“水深 / m”）
     async function tryLoadLegend(plyUrl){
       try{
         const u = new URL(plyUrl, location.href), name=u.pathname.split('/').pop(), base=name.replace(/\.ply$/i,'');
@@ -205,8 +223,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         const r = await fetch(u.href+'?_='+Date.now()); if(!r.ok) return;
         const j = await r.json(); const s=j.legend||j;
         if(s.min!=null && s.max!=null && Array.isArray(s.stops)){
-          // 从 stops 生成离散颜色（按 stops 数量离散）
-          const cols = s.stops.map(p=>p[1]); legendSpec = {min:s.min, max:s.max, colors: cols};
+          const cols = s.stops.map(p=>p[1]);
+          legendSpec = {min:s.min, max:s.max, colors: cols};
           drawLegendDiscrete();
         }
       }catch(_){}
@@ -242,12 +260,43 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     function makeMesh(geo){if(geo.index) geo=geo.toNonIndexed(); geo.computeVertexNormals?.();const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});return new THREE.Mesh(geo,mat);}
 
     async function loadPLY(url){
-      statusEl.textContent='加载中...'; progressEl.style.display='block'; progressEl.textContent='0%';
-      clearScene(); tryLoadLegend(url);
-      loader.load(url,(geo)=>{ geo.computeBoundingBox?.(); currentObj = asPoints? makePoints(geo): makeMesh(geo);
-        root.add(currentObj); fitObject(currentObj); statusEl.textContent='加载完成'; progressEl.style.display='none';
-      },(xhr)=>{ if(xhr.total){ const p=(xhr.loaded/xhr.total*100).toFixed(1)+'%'; statusEl.textContent='下载 '+p; progressEl.textContent=p; }
-      },(err)=>{ console.error(err); statusEl.textContent='加载失败'; progressEl.style.display='none'; });
+      statusEl.textContent='加载中...';
+      progressWrap.style.display='block';
+      progressText.textContent='加载中…';
+      progressFill.style.width='0%';
+
+      clearScene();
+      tryLoadLegend(url);
+
+      loader.load(url,(geo)=>{
+        geo.computeBoundingBox?.();
+        currentObj = asPoints? makePoints(geo): makeMesh(geo);
+        root.add(currentObj);
+        fitObject(currentObj);
+        statusEl.textContent='加载完成';
+        progressFill.style.width='100%';
+        progressText.textContent='100%';
+        setTimeout(()=>{progressWrap.style.display='none';}, 400);
+      },(xhr)=>{
+        // 仅在 total 有值时显示百分比；防止 >100%，这里最多到 99%
+        if (xhr.total){
+          const pct = Math.min(99, Math.floor(xhr.loaded / xhr.total * 100));
+          progressFill.style.width = pct + '%';
+          progressText.textContent = pct + '%';
+          statusEl.textContent = '下载 ' + pct + '%';
+        }else{
+          // 未提供 total：显示动态条（可选简化为文字）
+          progressText.textContent = '加载中…';
+          const cur = parseFloat(progressFill.style.width) || 0;
+          const nxt = (cur + 2) % 90; // 0~90 来回
+          progressFill.style.width = nxt + '%';
+        }
+      },(err)=>{
+        console.error(err);
+        statusEl.textContent='加载失败';
+        progressText.textContent='加载失败';
+        setTimeout(()=>{progressWrap.style.display='none';}, 1200);
+      });
     }
 
     pointSize.addEventListener('input',()=>{ if(currentObj&&currentObj.material&&currentObj.material.size!==undefined){currentObj.material.size=parseFloat(pointSize.value);} });
@@ -265,8 +314,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     /* 主画布点击：拾取/测距（带标记+线段） */
     renderer.domElement.addEventListener('pointerdown',(e)=>{
       if(!currentObj) return; if(!isOn(pickBtn)&&!isOn(measureBtn)) return;
-      const r=renderer.domElement.getBoundingClientRect(); mouse.x=((e.clientX-r.left)/r.width)*2-1; mouse.y=-((e.clientY-r.top)/r.height)*2+1;
-      rc.setFromCamera(mouse,camera); const h=rc.intersectObject(currentObj,true); if(!h.length) return; const p=h[0].point.clone();
+      const r=renderer.domElement.getBoundingClientRect(); const mouse=new THREE.Vector2(
+        ((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1 );
+      const rc=new THREE.Raycaster(); rc.setFromCamera(mouse,camera);
+      const h=rc.intersectObject(currentObj,true); if(!h.length) return; const p=h[0].point.clone();
 
       if(isOn(pickBtn)){ clearPick(); pickMarker=makeMarker(0x9a4dff); pickMarker.position.copy(p); root.add(pickMarker);
         hud.textContent=`拾取\nX:${p.x.toFixed(3)}\nY:${p.y.toFixed(3)}\nZ:${p.z.toFixed(3)}`; }
@@ -299,7 +350,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     document.getElementById('dateSel').addEventListener('change',()=>{const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id);});
     document.getElementById('loadBtn').addEventListener('click',()=>{const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id); if(currentScene) loadPLY(currentScene.plyUrl);});
 
-    /* 对正视角 */
+    /* 视图对正 */
     function getCenter(){ if(root.children.length===0) return new THREE.Vector3(); return new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());}
     function distTo(c){ return camera.position.clone().sub(c).length(); }
     function snapToAxis(a){ const c=getCenter(); const dist=Math.max(1,distTo(c)); let pos=new THREE.Vector3(); let up=new THREE.Vector3(0,0,1);
