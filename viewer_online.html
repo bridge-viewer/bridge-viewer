@@ -104,7 +104,7 @@
       const data = await resp.json();
       bridges = data.bridges || [];
       scenes  = data.scenes  || [];
-      bridgeSel.innerHTML = bridges.map(b => `<option value="\${b.id}">\${b.name}</option>`).join('');
+      bridgeSel.innerHTML = bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
       fillDates();
       statusEl.textContent = 'index.json 加载完成';
     }
@@ -112,7 +112,7 @@
     function fillDates() {
       const bid = bridgeSel.value || (bridges[0] && bridges[0].id) || '';
       const arr = scenes.filter(s=>s.bridgeId===bid).sort((a,b)=>a.date.localeCompare(b.date));
-      dateSel.innerHTML = arr.map(s=>`<option value="\${s.id}">\${s.date}</option>`).join('');
+      dateSel.innerHTML   = arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');
     }
 
     bridgeSel.addEventListener('change', () => { fillDates(); });
