@@ -14,16 +14,17 @@
     #hud { position:fixed; top:52px; left:10px; background:rgba(0,0,0,.55); color:#fff; padding:6px 10px; border-radius:6px; font-size:13px; white-space:pre; }
     #legend { position:fixed; right:20px; top:76px; width:20px; height:200px; border:1px solid #888;
               background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000); }
-    #axisCanvas { position:fixed; right:20px; bottom:20px; width:100px; height:100px; background:transparent; }
+    /* 小坐标系：一个WebGL画布 + 一个2D外框画布叠加 */
+    #axisWrap { position:fixed; right:20px; bottom:20px; width:110px; height:110px; pointer-events:none; }
+    #axisCanvas { position:absolute; inset:0; width:110px; height:110px; background:transparent; pointer-events:auto; }
+    #axisRing   { position:absolute; inset:0; width:110px; height:110px; background:transparent; pointer-events:none; }
     .sep { width:1px; height:22px; background:#d0d0d0; margin:0 4px; }
     .muted { color:#666; }
     .btn { background:#f3f3f3; border:1px solid #cfcfcf; border-radius:6px; }
     .btn-toggle[aria-pressed="true"]{ background:#315cf0; color:#fff; border-color:#315cf0; }
   </style>
   <script type="importmap">{
-    "imports": {
-      "three": "./three.module.js"
-    }
+    "imports": { "three": "./three.module.js" }
   }</script>
 </head>
 <body>
@@ -48,14 +49,19 @@
   <div id="container"></div>
   <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
   <div id="legend" title="示意色带"></div>
-  <canvas id="axisCanvas"></canvas>
+
+  <!-- 小坐标系容器：WebGL + 2D外框 -->
+  <div id="axisWrap">
+    <canvas id="axisCanvas" width="110" height="110"></canvas>
+    <canvas id="axisRing"   width="110" height="110"></canvas>
+  </div>
 
   <script type="module">
     import * as THREE from 'three';
     import { OrbitControls } from './OrbitControls.js';
     import { PLYLoader } from './PLYLoader.js';
 
-    // ===== 场景基础（灰底 + 环境光/平行光，保持你原风格） =====
+    // ===== 场景基础（灰底 + 环境光/平行光，保持你的风格） =====
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcccccc);
 
@@ -78,16 +84,107 @@
     const root = new THREE.Group();
     scene.add(root);
 
-    const axesHelper = new THREE.AxesHelper(50);
-    scene.add(axesHelper);
+    // === 删除大坐标系（axesHelper），仅保留右下角小坐标系 ===
 
-    // 右下角稳定坐标系（主相机旋转的逆）
-    const axisScene = new THREE.Scene();
-    const axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+    // ===== 右下角小坐标系（可点击） =====
+    const axisScene   = new THREE.Scene();
+    const axisCamera  = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
     axisCamera.position.set(0,0,2);
-    const axisRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('axisCanvas'), alpha:true, antialias:true });
-    axisRenderer.setSize(100,100);
-    axisScene.add(new THREE.AxesHelper(1.2));
+    const axisRenderer = new THREE.WebGLRenderer({
+      canvas: document.getElementById('axisCanvas'),
+      alpha:true, antialias:true
+    });
+    axisRenderer.setSize(110,110);
+
+    // 小坐标系：箭头（ArrowHelper）+ 文字标签（Sprite）
+    const mini = new THREE.Group(); axisScene.add(mini);
+
+    function makeLabelSprite(text, color){
+      const cvs = document.createElement('canvas');
+      const s = 128; cvs.width = cvs.height = s;
+      const ctx = cvs.getContext('2d');
+      ctx.fillStyle = 'rgba(0,0,0,0)';
+      ctx.fillRect(0,0,s,s);
+      ctx.fillStyle = color;
+      ctx.font = 'bold 72px Arial';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(text, s/2, s/2);
+      const tex = new THREE.CanvasTexture(cvs);
+      const mat = new THREE.SpriteMaterial({ map: tex, transparent:true });
+      const sp = new THREE.Sprite(mat);
+      sp.scale.set(0.6,0.6,0.6); // 适配尺寸
+      return sp;
+    }
+
+    function addAxis(dir, color, name){
+      const len = 1.1, headLen = 0.28, headWid = 0.18;
+      const ah = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), len, color, headLen, headWid);
+      ah.userData.axis = name;
+      ah.name = 'axis_'+name;
+      mini.add(ah);
+      // 标签
+      const sp = makeLabelSprite(name, '#ffffff');
+      sp.position.copy(dir.clone().multiplyScalar(1.35));
+      sp.userData.axis = name;
+      mini.add(sp);
+    }
+    addAxis(new THREE.Vector3(1,0,0), 0xff4444, 'X');
+    addAxis(new THREE.Vector3(0,1,0), 0x44ff44, 'Y');
+    addAxis(new THREE.Vector3(0,0,1), 0x4488ff, 'Z');
+
+    // 圆形外框（2D 画布描边）
+    const ring = document.getElementById('axisRing');
+    const rctx = ring.getContext('2d');
+    function drawRing(){
+      const w = ring.width, h = ring.height;
+      rctx.clearRect(0,0,w,h);
+      rctx.beginPath();
+      rctx.arc(w/2, h/2, Math.min(w,h)/2 - 6, 0, Math.PI*2);
+      rctx.strokeStyle = 'rgba(0,0,0,0.45)';
+      rctx.lineWidth = 4;
+      rctx.stroke();
+    }
+    drawRing();
+
+    // 点击小坐标系：将视角对正到 X/Y/Z 轴
+    const axisCanvas = document.getElementById('axisCanvas');
+    const axisRay = new THREE.Raycaster();
+    const axisMouse = new THREE.Vector2();
+    axisCanvas.addEventListener('pointerdown', (e)=>{
+      const rect = axisCanvas.getBoundingClientRect();
+      axisMouse.x = ((e.clientX - rect.left)/rect.width)*2 - 1;
+      axisMouse.y = -((e.clientY - rect.top)/rect.height)*2 + 1;
+      axisRay.setFromCamera(axisMouse, axisCamera);
+      const hits = axisRay.intersectObjects(mini.children, true);
+      if(!hits.length) return;
+      const hit = hits.find(h => h.object.userData.axis);
+      const axis = hit ? hit.object.userData.axis : (hits[0].object.userData.axis);
+      if(!axis) return;
+      snapToAxis(axis);
+    });
+
+    function getSceneCenter(){
+      if(root.children.length===0) return new THREE.Vector3();
+      const box = new THREE.Box3().setFromObject(root);
+      return box.getCenter(new THREE.Vector3());
+    }
+    function currentDistanceTo(target){
+      return camera.position.clone().sub(target).length();
+    }
+    function snapToAxis(axis){
+      const center = getSceneCenter();
+      const dist = Math.max(1, currentDistanceTo(center));
+      let pos = new THREE.Vector3();
+      let up  = new THREE.Vector3(0,0,1); // 默认Z向上
+      if(axis==='X'){ pos.set(dist,0,0); up.set(0,0,1); }
+      if(axis==='Y'){ pos.set(0,dist,0); up.set(0,0,1); }
+      if(axis==='Z'){ pos.set(0,0,dist); up.set(0,1,0); } // 俯视时保证Y向上
+      camera.up.copy(up);
+      camera.position.copy(center.clone().add(pos));
+      controls.target.copy(center);
+      controls.update();
+    }
 
     // ===== UI元素 =====
     const status = document.getElementById('status');
@@ -135,23 +232,16 @@
       hud.textContent = '提示：启用“拾取”或“测距”后，在模型上点击。';
     }
 
-    // ===== 关键修复：根据勾选点/网格，分别使用正确的“带颜色”材质 =====
+    // 带颜色的点/网格（修复）
     function makePoints(geometry){
       const hasColor = !!geometry.getAttribute('color');
       const mat = new THREE.PointsMaterial({ size: parseFloat(pointSize.value), vertexColors: hasColor });
       return new THREE.Points(geometry, mat);
     }
-
     function makeMesh(geometry){
-      // 很多 PLY 的顶点色在索引几何上会共享，需要先展开到非索引
       if (geometry.index) geometry = geometry.toNonIndexed();
-      // 网格光照用到法线
       geometry.computeVertexNormals?.();
-      // 关键：启用顶点色；不要 wireframe
-      const mat = new THREE.MeshLambertMaterial({
-        vertexColors: true,
-        side: THREE.DoubleSide
-      });
+      const mat = new THREE.MeshLambertMaterial({ vertexColors:true, side:THREE.DoubleSide });
       return new THREE.Mesh(geometry, mat);
     }
 
@@ -196,7 +286,6 @@
       if (isOn(pickBtn)){
         hud.textContent = `拾取\nX: ${p.x.toFixed(3)}\nY: ${p.y.toFixed(3)}\nZ: ${p.z.toFixed(3)}`;
       }
-
       if (isOn(measureBtn)){
         if (!measureA){
           measureA = p.clone();
@@ -219,12 +308,11 @@
         }
       }
     });
-
     pickBtn.addEventListener('click', ()=>{ setToggle(pickBtn, !isOn(pickBtn)); if (isOn(pickBtn)) setToggle(measureBtn,false); });
     measureBtn.addEventListener('click', ()=>{ setToggle(measureBtn, !isOn(measureBtn)); if (isOn(measureBtn)) setToggle(pickBtn,false); });
     clearBtn.addEventListener('click', ()=>{ clearMeasure(); hud.textContent='已清除测距/拾取结果'; });
 
-    // ===== index.json → 桥梁/时间下拉（相对路径版） =====
+    // ===== index.json → 桥梁/时间下拉 =====
     let bridges=[], scenes=[];
     async function loadIndex(){
       const res = await fetch('./index.json?_=' + Date.now());
@@ -256,11 +344,12 @@
       requestAnimationFrame(animate);
       controls.update();
       renderer.render(scene, camera);
+
+      // 小坐标系跟随：主相机四元数取反
       axisCamera.quaternion.copy(camera.quaternion).invert();
       axisRenderer.render(axisScene, axisCamera);
     })();
 
-    // 初始化：读 index.json
     loadIndex();
   </script>
 </body>
