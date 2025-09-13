@@ -14,7 +14,7 @@
     #hud { position:fixed; top:52px; left:10px; background:rgba(0,0,0,.55); color:#fff; padding:6px 10px; border-radius:6px; font-size:13px; white-space:pre; }
     #legend { position:fixed; right:20px; top:76px; width:20px; height:200px; border:1px solid #888;
               background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000); }
-    /* 小坐标系：一个WebGL画布 + 一个2D外框画布叠加 */
+    /* 小坐标系：WebGL画布 + 2D外框叠加 */
     #axisWrap { position:fixed; right:20px; bottom:20px; width:110px; height:110px; pointer-events:none; }
     #axisCanvas { position:absolute; inset:0; width:110px; height:110px; background:transparent; pointer-events:auto; }
     #axisRing   { position:absolute; inset:0; width:110px; height:110px; background:transparent; pointer-events:none; }
@@ -37,7 +37,7 @@
     <button id="loadBtn" class="btn">加载</button>
     <div class="sep"></div>
 
-    <!-- 点 / 网格切换（保留你的交互） -->
+    <!-- 点 / 网格切换 -->
     <label><input type="checkbox" id="pointMode" checked> 点显示</label>
     <label>点大小 <input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5"></label>
     <button id="pickBtn" class="btn btn-toggle" aria-pressed="false" title="单击拾取点">拾取</button>
@@ -61,7 +61,7 @@
     import { OrbitControls } from './OrbitControls.js';
     import { PLYLoader } from './PLYLoader.js';
 
-    // ===== 场景基础（灰底 + 环境光/平行光，保持你的风格） =====
+    // ===== 场景基础 =====
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0xcccccc);
 
@@ -72,6 +72,7 @@
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(window.innerWidth, window.innerHeight-44);
     document.getElementById('container').appendChild(renderer.domElement);
+    renderer.domElement.tabIndex = 0; // 允许聚焦：点击小坐标系后能马上拖动主视图
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
@@ -84,12 +85,14 @@
     const root = new THREE.Group();
     scene.add(root);
 
-    // === 删除大坐标系（axesHelper），仅保留右下角小坐标系 ===
-
-    // ===== 右下角小坐标系（原点钉死在圆心，可点击） =====
+    // ===== 右下角小坐标系（正交相机：大小不随视角变化；原点钉在圆心） =====
     const axisScene  = new THREE.Scene();
-    const axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
-    // 相机固定：始终在(0,0,2)，看向原点
+
+    const AXIS_CANVAS_SIZE = 110; // 画布像素
+    const AXIS_UNITS = 2.2;       // 正交相机视体尺寸（调大=看起来更小）
+    let axisCamera = new THREE.OrthographicCamera(
+      -AXIS_UNITS, AXIS_UNITS, AXIS_UNITS, -AXIS_UNITS, -10, 10
+    );
     axisCamera.position.set(0, 0, 2);
     axisCamera.up.set(0, 1, 0);
     axisCamera.lookAt(0, 0, 0);
@@ -98,10 +101,11 @@
       canvas: document.getElementById('axisCanvas'),
       alpha:true, antialias:true
     });
-    axisRenderer.setSize(110,110);
+    axisRenderer.setSize(AXIS_CANVAS_SIZE, AXIS_CANVAS_SIZE);
 
-    // 小坐标系对象
-    const mini = new THREE.Group(); axisScene.add(mini);
+    const mini = new THREE.Group();
+    axisScene.add(mini);
+    mini.scale.set(0.85, 0.85, 0.85); // 整体缩放，适配圆圈
 
     function makeLabelSprite(text, color){
       const cvs = document.createElement('canvas');
@@ -117,17 +121,17 @@
       const tex = new THREE.CanvasTexture(cvs);
       const mat = new THREE.SpriteMaterial({ map: tex, transparent:true });
       const sp = new THREE.Sprite(mat);
-      sp.scale.set(0.6,0.6,0.6);
+      sp.scale.set(0.45, 0.45, 0.45);
       return sp;
     }
     function addAxis(dir, color, name){
-      const len = 1.1, headLen = 0.28, headWid = 0.18;
+      const len = 0.90, headLen = 0.22, headWid = 0.14;
       const ah = new THREE.ArrowHelper(dir, new THREE.Vector3(0,0,0), len, color, headLen, headWid);
       ah.userData.axis = name;
       ah.name = 'axis_'+name;
       mini.add(ah);
       const sp = makeLabelSprite(name, '#ffffff');
-      sp.position.copy(dir.clone().multiplyScalar(1.35));
+      sp.position.copy(dir.clone().multiplyScalar(1.12));
       sp.userData.axis = name;
       mini.add(sp);
     }
@@ -149,7 +153,7 @@
     }
     drawRing();
 
-    // 点击小坐标系：将视角对正到 X/Y/Z 轴
+    // 点击小坐标系：将视角对正到 X/Y/Z 轴，并把焦点交回主画布
     const axisCanvas = document.getElementById('axisCanvas');
     const axisRay = new THREE.Raycaster();
     const axisMouse = new THREE.Vector2();
@@ -164,6 +168,10 @@
       const axis = hit ? hit.object.userData.axis : (hits[0].object.userData.axis);
       if(!axis) return;
       snapToAxis(axis);
+      try { axisCanvas.releasePointerCapture(e.pointerId); } catch(_) {}
+      renderer.domElement.focus();
+      e.preventDefault();
+      e.stopPropagation();
     });
 
     function getSceneCenter(){
@@ -234,7 +242,7 @@
       hud.textContent = '提示：启用“拾取”或“测距”后，在模型上点击。';
     }
 
-    // 带颜色的点/网格（修复）
+    // 带颜色的点/网格
     function makePoints(geometry){
       const hasColor = !!geometry.getAttribute('color');
       const mat = new THREE.PointsMaterial({ size: parseFloat(pointSize.value), vertexColors: hasColor });
@@ -270,7 +278,7 @@
       }
     });
 
-    // ===== 拾取 & 测距（保持你的交互） =====
+    // ===== 拾取 & 测距 =====
     renderer.domElement.addEventListener('pointerdown', (e)=>{
       if (!currentObj) return;
       if (!isOn(pickBtn) && !isOn(measureBtn)) return;
@@ -340,10 +348,14 @@
       camera.aspect = window.innerWidth/(window.innerHeight-44);
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight-44);
-      // 保底：小坐标系相机复位
-      axisCamera.position.set(0, 0, 2);
-      axisCamera.up.set(0, 1, 0);
-      axisCamera.lookAt(0, 0, 0);
+
+      // 若你改了 AXIS_CANVAS_SIZE 或 AXIS_UNITS，可在此同步
+      axisRenderer.setSize(AXIS_CANVAS_SIZE, AXIS_CANVAS_SIZE);
+      axisCamera.left   = -AXIS_UNITS;
+      axisCamera.right  =  AXIS_UNITS;
+      axisCamera.top    =  AXIS_UNITS;
+      axisCamera.bottom = -AXIS_UNITS;
+      axisCamera.updateProjectionMatrix();
     });
 
     (function animate(){
@@ -351,11 +363,9 @@
       controls.update();
       renderer.render(scene, camera);
 
-      // —— 小坐标系钉在圆心：转“对象”，不转相机 ——
-      mini.position.set(0, 0, 0);              // 原点固定在圆心
-      mini.quaternion.copy(camera.quaternion); // 跟随主相机旋转
-      axisCamera.position.set(0, 0, 2);        // 相机固定
-      axisCamera.up.set(0, 1, 0);
+      // 小坐标系：对象在原点、复制主相机旋转；相机正交固定看原点
+      mini.position.set(0, 0, 0);
+      mini.quaternion.copy(camera.quaternion);
       axisCamera.lookAt(0, 0, 0);
       axisRenderer.render(axisScene, axisCamera);
     })();
