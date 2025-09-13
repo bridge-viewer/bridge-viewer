@@ -6,88 +6,58 @@
   <title>桥梁地形云图在线查看器</title>
   <style>
     :root{
-      --bg:#ececec;
-      --panel:#ffffffee;
-      --text:#222;
-      --muted:#667085;
-      --primary:#315cf0;
-      --primary-weak:#e7ecff;
-      --border:#d9d9d9;
-      --shadow:0 6px 20px rgba(0,0,0,.08);
+      --bg:#ececec; --panel:#ffffffee; --text:#222; --muted:#667085;
+      --primary:#315cf0; --primary-weak:#e7ecff; --border:#d9d9d9; --shadow:0 6px 20px rgba(0,0,0,.08);
     }
     *{box-sizing:border-box}
     body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei",sans-serif;color:var(--text);}
-    a{color:var(--primary);text-decoration:none}
-    /* 顶栏（LOGO + 标题） */
-    header#topbar{
-      position:sticky;top:0;left:0;right:0;z-index:20;
-      display:flex;align-items:center;gap:10px;
-      padding:10px 12px;background:var(--panel);backdrop-filter:saturate(180%) blur(6px);
-      border-bottom:1px solid var(--border);
-    }
+    header#topbar{position:sticky;top:0;z-index:20;display:flex;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
     #logo{width:32px;height:32px;object-fit:contain;border-radius:50%}
     #title{font-size:16px;font-weight:700;letter-spacing:.5px}
+    #brand{margin-left:auto;display:flex;align-items:center;gap:8px}
+    #brand img{width:36px;height:36px;border-radius:50%}
+    #brand .name{font-weight:700;color:#22314a;font-size:14px}
     /* 工具区（两行自适应） */
-    #toolbar{
-      position:sticky;top:54px;z-index:19;
-      display:grid;grid-template-columns:repeat(12,1fr);gap:8px;
-      padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border);
-    }
+    #toolbar{position:sticky;top:54px;z-index:19;display:grid;grid-template-columns:repeat(12,1fr);gap:8px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
     .row{display:contents}
-    .group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);
-      border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
+    .group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
     .group label{font-size:13px;color:var(--muted)}
-    select,button,.btn,input[type=range]{
-      font-size:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);
-      padding:6px 10px;outline:none;
-    }
+    select,button,input[type=range]{font-size:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);padding:6px 10px}
     select{min-width:140px}
     button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
     .toggle{padding:6px 10px;border-radius:20px;background:var(--primary-weak);border-color:#cbd5ff;color:#2946b8}
     .toggle[aria-pressed="true"]{background:var(--primary);color:#fff;border-color:var(--primary)}
     .muted{color:var(--muted)}
-    /* 网格布局：第一行（桥梁与载入），第二行（显示/测距/点大小） */
-    /* 12列栅格 - 更好排布到手机 */
-    #g1{grid-column:span 12}
-    #g2{grid-column:span 12}
-    @media (min-width:860px){
-      #g1{grid-column:span 7}
-      #g2{grid-column:span 5}
-    }
+    #g1{grid-column:span 12} #g2{grid-column:span 12}
+    @media (min-width:860px){ #g1{grid-column:span 7} #g2{grid-column:span 5} }
     /* 画布区 */
     #container{position:fixed;inset:0;top:128px}
-    #legend{position:fixed;right:16px;top:148px;width:20px;height:200px;border:1px solid #888;
-            background:linear-gradient(to top,#0000ff,#00ffff,#00ff00,#ffff00,#ff7f00,#ff0000);}
-    #hud{position:fixed;left:12px;top:148px;background:rgba(0,0,0,.55);color:#fff;padding:6px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:15}
-    /* 右上角校徽 */
-    #brand{position:fixed;right:16px;top:10px;z-index:30;display:flex;align-items:center;gap:8px}
-    #brand img{width:36px;height:36px;object-fit:contain;border-radius:50%}
-    #brand .name{font-weight:700;color:#22314a;font-size:14px}
-    /* 左下角水印校徽 */
-    #wm{position:fixed;left:10px;bottom:10px;opacity:.10;z-index:5;pointer-events:none}
-    #wm img{width:110px;height:110px;object-fit:contain}
-    /* 小坐标系（正交相机，无圆圈） */
+    /* 底部HUD：不会被遮挡 */
+    #hud{position:fixed;left:16px;bottom:16px;background:rgba(0,0,0,.65);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:15}
+    /* 右侧图例（可配置） */
+    #legendBox{position:fixed;right:16px;top:148px;width:54px;z-index:16;text-align:center;font-size:12px;color:#333}
+    #legend{width:20px;height:200px;margin:0 auto;border:1px solid #888;display:block}
+    #legendMin,#legendMax{margin:4px 0 0 0}
+    #legendUnit{color:#666;margin-top:2px}
+    /* 小坐标系（正交，无外圈） */
     #axisWrap{position:fixed;right:16px;bottom:16px;width:180px;height:180px;pointer-events:none}
     #axisCanvas{position:absolute;inset:0;width:180px;height:180px;background:transparent;pointer-events:auto}
+    /* 左下角水印校徽（可留可删） */
+    #wm{position:fixed;left:10px;bottom:10px;opacity:.10;z-index:5;pointer-events:none}
+    #wm img{width:110px;height:110px;object-fit:contain}
   </style>
-  <script type="importmap">{
-    "imports": {"three":"./three.module.js"}
-  }</script>
+  <script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
 </head>
 <body>
-  <!-- 顶栏：LOGO + 标题 + 右上角校徽 -->
+  <!-- 顶栏 -->
   <header id="topbar">
     <img id="logo" src="./logo.png" alt="logo" />
     <div id="title">桥梁地形云图在线查看器</div>
-    <div id="brand">
-      <img src="./logo.png" alt="长安大学"/>
-      <span class="name">长安大学</span>
-    </div>
+    <div id="brand"><img src="./logo.png" alt="长安大学"/><span class="name">长安大学</span></div>
   </header>
 
-  <!-- 工具区（两行自适应） -->
+  <!-- 工具区（两行响应式） -->
   <section id="toolbar">
-    <!-- 行1：桥梁/时间/加载 -->
     <div id="g1" class="row">
       <div class="group" style="grid-column:span 12;">
         <label>桥梁</label>
@@ -98,7 +68,6 @@
         <span id="status" class="muted" style="margin-left:auto">就绪</span>
       </div>
     </div>
-    <!-- 行2：显示方式/点大小/拾取/测距/清除 -->
     <div id="g2" class="row">
       <div class="group" style="grid-column:span 12;flex-wrap:wrap">
         <button id="modeBtn" class="toggle" aria-pressed="false" title="切换点云/网格">网格</button>
@@ -106,14 +75,19 @@
         <input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5" style="width:160px">
         <button id="pickBtn" class="toggle" aria-pressed="false" title="单击拾取点">拾取</button>
         <button id="measureBtn" class="toggle" aria-pressed="false" title="两点测距">测距</button>
-        <button id="clearBtn" class="btn">清除</button>
+        <button id="clearBtn" class="toggle" aria-pressed="false">清除</button>
       </div>
     </div>
   </section>
 
-  <!-- 画布 / 图例 / 提示 / 小坐标系 / 水印 -->
+  <!-- 画布 / 图例 / HUD / 小坐标系 / 水印 -->
   <div id="container"></div>
-  <div id="legend" title="示意色带"></div>
+  <div id="legendBox">
+    <canvas id="legend" width="20" height="200"></canvas>
+    <div id="legendMin">min</div>
+    <div id="legendMax">max</div>
+    <div id="legendUnit">单位</div>
+  </div>
   <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
   <div id="axisWrap"><canvas id="axisCanvas" width="180" height="180"></canvas></div>
   <div id="wm"><img src="./logo.png" alt="长安大学水印"/></div>
@@ -144,65 +118,43 @@
     dir.position.set(120, 220, 120);
     scene.add(dir);
 
-    const root = new THREE.Group();
-    scene.add(root);
+    const root = new THREE.Group(); scene.add(root);
 
     // ===== 小坐标系（正交，无外圈） =====
     const axisScene = new THREE.Scene();
-    const AXIS_CANVAS_SIZE = 180;
-    const AXIS_UNITS = 2.2;
+    const AXIS_CANVAS_SIZE = 180, AXIS_UNITS = 2.2;
     const axisCamera = new THREE.OrthographicCamera(-AXIS_UNITS, AXIS_UNITS, AXIS_UNITS, -AXIS_UNITS, -10, 10);
-    axisCamera.position.set(0,0,2);
-    axisCamera.up.set(0,1,0);
-    axisCamera.lookAt(0,0,0);
-
-    const axisRenderer = new THREE.WebGLRenderer({
-      canvas: document.getElementById('axisCanvas'),
-      alpha:true, antialias:true
-    });
+    axisCamera.position.set(0,0,2); axisCamera.up.set(0,1,0); axisCamera.lookAt(0,0,0);
+    const axisRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('axisCanvas'), alpha:true, antialias:true });
     axisRenderer.setSize(AXIS_CANVAS_SIZE, AXIS_CANVAS_SIZE);
+    const mini = new THREE.Group(); axisScene.add(mini); mini.scale.set(0.95,0.95,0.95);
 
-    const mini = new THREE.Group(); axisScene.add(mini);
-    mini.scale.set(0.95,0.95,0.95);
-
-    function makeLabelSprite(text, color){
-      const cvs=document.createElement('canvas'); const s=128; cvs.width=cvs.height=s;
-      const ctx=cvs.getContext('2d');
-      ctx.clearRect(0,0,s,s);
-      ctx.fillStyle=color; ctx.font='bold 72px Arial';
-      ctx.textAlign='center'; ctx.textBaseline='middle';
-      ctx.fillText(text,s/2,s/2);
-      const tex=new THREE.CanvasTexture(cvs);
-      const mat=new THREE.SpriteMaterial({map:tex,transparent:true});
-      const sp=new THREE.Sprite(mat);
-      sp.scale.set(0.9,0.9,0.9); // 更醒目
-      return sp;
-    }
+    function makeLabelSprite(text, color){ const cvs=document.createElement('canvas'); const s=128; cvs.width=cvs.height=s;
+      const ctx=cvs.getContext('2d'); ctx.clearRect(0,0,s,s); ctx.fillStyle=color; ctx.font='bold 72px Arial';
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText(text,s/2,s/2);
+      const tex=new THREE.CanvasTexture(cvs); const mat=new THREE.SpriteMaterial({map:tex,transparent:true});
+      const sp=new THREE.Sprite(mat); sp.scale.set(0.9,0.9,0.9); return sp; }
     function addAxis(dir,color,name){
-      const len=1.35, headLen=0.33, headWid=0.21; // 1.5x
+      const len=1.35, headLen=0.33, headWid=0.21;
       const ah=new THREE.ArrowHelper(dir,new THREE.Vector3(0,0,0),len,color,headLen,headWid);
-      ah.userData.axis=name; ah.name='axis_'+name; mini.add(ah);
-      const sp=makeLabelSprite(name,'#000000'); // 黑色
-      sp.position.copy(dir.clone().multiplyScalar(1.5)); sp.userData.axis=name; mini.add(sp);
+      ah.userData.axis=name; mini.add(ah);
+      const sp=makeLabelSprite(name,'#000'); sp.position.copy(dir.clone().multiplyScalar(1.5));
+      sp.userData.axis=name; mini.add(sp);
     }
     addAxis(new THREE.Vector3(1,0,0),0xff4444,'X');
     addAxis(new THREE.Vector3(0,1,0),0x44ff44,'Y');
     addAxis(new THREE.Vector3(0,0,1),0x4488ff,'Z');
 
-    // 点击 X/Y/Z 对正
     const axisCanvas=document.getElementById('axisCanvas');
-    const axisRay=new THREE.Raycaster(); const axisMouse=new THREE.Vector2();
+    const axisRay=new THREE.Raycaster(), axisMouse=new THREE.Vector2();
     axisCanvas.addEventListener('pointerdown',(e)=>{
       const rect=axisCanvas.getBoundingClientRect();
-      axisMouse.x=((e.clientX-rect.left)/rect.width)*2-1;
-      axisMouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
+      axisMouse.x=((e.clientX-rect.left)/rect.width)*2-1; axisMouse.y=-((e.clientY-rect.top)/rect.height)*2+1;
       axisRay.setFromCamera(axisMouse,axisCamera);
       const hits=axisRay.intersectObjects(mini.children,true);
       if(!hits.length) return;
-      const hit=hits.find(h=>h.object.userData.axis);
-      const axis=hit?hit.object.userData.axis:(hits[0].object.userData.axis);
-      if(!axis) return; snapToAxis(axis);
-      try{axisCanvas.releasePointerCapture(e.pointerId);}catch(_){}
+      const hit=hits.find(h=>h.object.userData.axis); const axis=hit?hit.object.userData.axis:(hits[0].object.userData.axis); if(!axis) return;
+      snapToAxis(axis); try{axisCanvas.releasePointerCapture(e.pointerId);}catch(_){}
       renderer.domElement.focus(); e.preventDefault(); e.stopPropagation();
     });
 
@@ -210,17 +162,103 @@
     const status=document.getElementById('status');
     const hud=document.getElementById('hud');
     const pointSize=document.getElementById('pointSize');
-    const modeBtn=document.getElementById('modeBtn'); // “网格/点云”切换按钮
+    const modeBtn=document.getElementById('modeBtn'); // "网格/点云"
     const pickBtn=document.getElementById('pickBtn');
     const measureBtn=document.getElementById('measureBtn');
     const clearBtn=document.getElementById('clearBtn');
 
     // ===== 变量 =====
     const loader=new PLYLoader();
-    let currentObj=null;
-    let asPoints=false; // 默认网格（false）
-    let measureA=null, measureB=null, measureLine=null;
-    const raycaster=new THREE.Raycaster(); const mouse=new THREE.Vector2();
+    let currentObj=null, asPoints=false; // 默认网格
+    let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
+    let pickMarker=null;
+    const raycaster=new THREE.Raycaster(), mouse=new THREE.Vector2();
+
+    // ===== 图例（可配置：*.legend.json） =====
+    const legendCanvas = document.getElementById('legend');
+    const legendCtx = legendCanvas.getContext('2d');
+    const legendMinEl = document.getElementById('legendMin');
+    const legendMaxEl = document.getElementById('legendMax');
+    const legendUnitEl= document.getElementById('legendUnit');
+
+    // 默认彩虹
+    let legendConfig = {
+      min: 0, max: 1, unit: '',
+      stops: [
+        [0.00, '#0000ff'], [0.20, '#00ffff'], [0.40, '#00ff00'],
+        [0.60, '#ffff00'], [0.80, '#ff7f00'], [1.00, '#ff0000']
+      ]
+    };
+    function drawLegend(){
+      const g = legendCtx.createLinearGradient(0, legendCanvas.height, 0, 0);
+      for(const [t, color] of legendConfig.stops){ g.addColorStop(t, color); }
+      legendCtx.fillStyle = g; legendCtx.fillRect(0,0,legendCanvas.width,legendCanvas.height);
+      legendMinEl.textContent = legendConfig.min;
+      legendMaxEl.textContent = legendConfig.max;
+      legendUnitEl.textContent = legendConfig.unit || '';
+    }
+    drawLegend();
+
+    // 侧车文件：与 PLY 同名的 *.legend.json
+    async function loadLegendFor(plyUrl){
+      try{
+        const url = new URL(plyUrl, location.href);
+        const fname = url.pathname.split('/').pop();
+        const base = fname.replace(/\.ply$/i,'');
+        url.pathname = url.pathname.replace(fname, base + '.legend.json');
+        const res = await fetch(url.href + '?_=' + Date.now());
+        if(!res.ok) return; // 没有就忽略
+        const cfg = await res.json();
+        // 允许三种写法：{legend:{...}} 或 直接 {...} 或带 stops/min/max/unit
+        const lg = cfg.legend || cfg;
+        if(lg && Array.isArray(lg.stops)) { legendConfig = { min: lg.min ?? 0, max: lg.max ?? 1, unit: lg.unit ?? '', stops: lg.stops }; drawLegend(); }
+      }catch(e){ /* 忽略 */ }
+    }
+    /* 例：cloud.legend.json
+      {
+        "min": -5.0,
+        "max":  5.0,
+        "unit": "m",
+        "stops": [
+          [0.00,"#0000ff"], [0.25,"#00ffff"], [0.50,"#00ff00"], [0.75,"#ffff00"], [1.00,"#ff0000"]
+        ]
+      }
+    */
+
+    // ===== 工具函数 =====
+    function sceneScale(){
+      const box = new THREE.Box3().setFromObject(root);
+      const size = box.getSize(new THREE.Vector3());
+      const maxDim = Math.max(size.x,size.y,size.z);
+      return (maxDim || 1);
+    }
+    function makeMarker(colorHex){
+      const s = sceneScale() * 0.01; // 自动缩放：1%
+      const geo = new THREE.SphereGeometry(s, 16, 16);
+      const mat = new THREE.MeshBasicMaterial({ color: colorHex, depthTest:true });
+      const mesh = new THREE.Mesh(geo, mat);
+      // 白色外圈（描边）
+      const edge = new THREE.Mesh(
+        new THREE.SphereGeometry(s*1.3, 16, 16),
+        new THREE.MeshBasicMaterial({ color: 0xffffff, transparent:true, opacity:0.8, depthTest:true })
+      );
+      const g = new THREE.Group(); g.add(edge); g.add(mesh);
+      return g;
+    }
+    function makeMeasureLine(a,b){
+      const geo = new THREE.BufferGeometry().setFromPoints([a,b]);
+      const mat = new THREE.LineBasicMaterial({ color: 0x00e0ff, linewidth: 2, transparent:true, opacity:0.95 });
+      return new THREE.Line(geo, mat);
+    }
+    function updateMeasureLine(){
+      if(measureLine && measureA && measureB){
+        const pos = measureLine.geometry.attributes.position.array;
+        pos[0]=measureA.x; pos[1]=measureA.y; pos[2]=measureA.z;
+        pos[3]=measureB.x; pos[4]=measureB.y; pos[5]=measureB.z;
+        measureLine.geometry.attributes.position.needsUpdate = true;
+        measureLine.geometry.computeBoundingSphere?.();
+      }
+    }
 
     function fitObject(obj){
       const box=new THREE.Box3().setFromObject(obj);
@@ -234,12 +272,19 @@
     }
     function clearMeasure(){
       measureA=measureB=null;
-      if(measureLine){ root.remove(measureLine); measureLine.geometry.dispose(); measureLine.material.dispose(); measureLine=null; }
+      if (measureLine){ root.remove(measureLine); measureLine.geometry.dispose(); measureLine.material.dispose(); measureLine=null; }
+      if (measureAMarker){ root.remove(measureAMarker); measureAMarker=null; }
+      if (measureBMarker){ root.remove(measureBMarker); measureBMarker=null; }
+    }
+    function clearPick(){
+      if(pickMarker){ root.remove(pickMarker); pickMarker=null; }
     }
     function clearScene(){
       if(currentObj){ root.remove(currentObj); currentObj.geometry?.dispose?.(); currentObj.material?.dispose?.(); currentObj=null; }
-      clearMeasure(); hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';
+      clearMeasure(); clearPick();
+      hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';
     }
+
     // 彩色点/网格
     function makePoints(geometry){
       const hasColor=!!geometry.getAttribute('color');
@@ -255,6 +300,8 @@
 
     async function loadPLY(url){
       status.textContent='加载中...'; clearScene();
+      // 先尝试加载图例配置
+      loadLegendFor(url);
       loader.load(url,(geometry)=>{
         geometry.computeBoundingBox?.();
         currentObj = asPoints ? makePoints(geometry) : makeMesh(geometry);
@@ -270,26 +317,21 @@
     });
 
     // 点/网格切换按钮
-    function refreshModeLabel(){
-      modeBtn.textContent = asPoints ? '点云' : '网格';
-      modeBtn.setAttribute('aria-pressed', asPoints ? 'true':'false');
-    }
+    function refreshModeLabel(){ modeBtn.textContent = asPoints ? '点云' : '网格'; modeBtn.setAttribute('aria-pressed', asPoints ? 'true':'false'); }
     refreshModeLabel();
     modeBtn.addEventListener('click', ()=>{
       asPoints=!asPoints; refreshModeLabel();
-      // 切换后如果已加载则重建材质
-      if(currentObj){
-        const url=currentScene?.plyUrl; if(url) loadPLY(url);
-      }
+      if(currentObj && currentScene?.plyUrl) loadPLY(currentScene.plyUrl);
     });
 
-    // 拾取/测距
+    // 拾取/测距按钮
     function setToggle(btn,on){ btn.setAttribute('aria-pressed', on?'true':'false'); }
     function isOn(btn){ return btn.getAttribute('aria-pressed')==='true'; }
     pickBtn.addEventListener('click',()=>{ setToggle(pickBtn,!isOn(pickBtn)); if(isOn(pickBtn)) setToggle(measureBtn,false); });
     measureBtn.addEventListener('click',()=>{ setToggle(measureBtn,!isOn(measureBtn)); if(isOn(measureBtn)) setToggle(pickBtn,false); });
-    clearBtn.addEventListener('click',()=>{ clearMeasure(); hud.textContent='已清除测距/拾取结果'; });
+    clearBtn.addEventListener('click',()=>{ clearMeasure(); clearPick(); hud.textContent='已清除测距/拾取结果'; });
 
+    // 主画布点击：拾取 / 测距
     renderer.domElement.addEventListener('pointerdown',(e)=>{
       if(!currentObj) return;
       if(!isOn(pickBtn) && !isOn(measureBtn)) return;
@@ -300,20 +342,31 @@
       const hits=raycaster.intersectObject(currentObj,true);
       if(!hits.length) return;
       const p=hits[0].point.clone();
+
       if(isOn(pickBtn)){
+        clearPick();
+        pickMarker = makeMarker(0x9a4dff);
+        pickMarker.position.copy(p); root.add(pickMarker);
         hud.textContent=`拾取\nX:${p.x.toFixed(3)}\nY:${p.y.toFixed(3)}\nZ:${p.z.toFixed(3)}`;
       }
       if(isOn(measureBtn)){
-        if(!measureA){ measureA=p.clone();
+        if(!measureA){
+          measureA=p.clone();
+          if(measureAMarker){ root.remove(measureAMarker); }
+          measureAMarker = makeMarker(0x00e0ff); measureAMarker.position.copy(measureA); root.add(measureAMarker);
           hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)} Y:${measureA.y.toFixed(3)} Z:${measureA.z.toFixed(3)}`;
-        }else if(!measureB){ measureB=p.clone();
+        }else if(!measureB){
+          measureB=p.clone();
+          if(measureBMarker){ root.remove(measureBMarker); }
+          measureBMarker = makeMarker(0xff6a00); measureBMarker.position.copy(measureB); root.add(measureBMarker);
           const dx=measureB.x-measureA.x, dy=measureB.y-measureA.y, dz=measureB.z-measureA.z;
           const d=Math.sqrt(dx*dx+dy*dy+dz*dz);
-          hud.textContent=`测距 A→B\nΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${d.toFixed(3)}`;
-          const geo=new THREE.BufferGeometry().setFromPoints([measureA,measureB]);
-          const mat=new THREE.LineBasicMaterial({color:0x00e0ff});
-          measureLine=new THREE.Line(geo,mat); root.add(measureLine);
-        }else{ clearMeasure(); measureA=p.clone();
+          if(!measureLine){ measureLine = makeMeasureLine(measureA, measureB); root.add(measureLine); } else { updateMeasureLine(); }
+          hud.textContent=`ΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${d.toFixed(3)}`;
+        }else{
+          clearMeasure();
+          measureA=p.clone();
+          measureAMarker = makeMarker(0x00e0ff); measureAMarker.position.copy(measureA); root.add(measureAMarker);
           hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)} Y:${measureA.y.toFixed(3)} Z:${measureA.z.toFixed(3)}`;
         }
       }
@@ -326,8 +379,7 @@
       const data=await res.json();
       bridges=data.bridges||[]; scenes=data.scenes||[];
       document.getElementById('bridgeSel').innerHTML=bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-      fillDates(); // 默认选中首个桥梁
-      // 默认自动加载“首条场景”且以网格显示
+      fillDates();
       const id=document.getElementById('dateSel').value;
       currentScene=scenes.find(x=>x.id===id); if(currentScene) loadPLY(currentScene.plyUrl);
     }
@@ -358,8 +410,7 @@
     }
     function currentDistanceTo(target){ return camera.position.clone().sub(target).length(); }
     function snapToAxis(axis){
-      const center=getSceneCenter();
-      const dist=Math.max(1,currentDistanceTo(center));
+      const center=getSceneCenter(); const dist=Math.max(1,currentDistanceTo(center));
       let pos=new THREE.Vector3(); let up=new THREE.Vector3(0,0,1);
       if(axis==='X'){ pos.set(dist,0,0); up.set(0,0,1); }
       if(axis==='Y'){ pos.set(0,dist,0); up.set(0,0,1); }
@@ -373,15 +424,13 @@
       camera.aspect=window.innerWidth/(window.innerHeight-128); camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth,window.innerHeight-128);
       axisRenderer.setSize(AXIS_CANVAS_SIZE,AXIS_CANVAS_SIZE);
-      axisCamera.left=-AXIS_UNITS; axisCamera.right=AXIS_UNITS;
-      axisCamera.top=AXIS_UNITS; axisCamera.bottom=-AXIS_UNITS; axisCamera.updateProjectionMatrix();
+      axisCamera.left=-AXIS_UNITS; axisCamera.right=AXIS_UNITS; axisCamera.top=AXIS_UNITS; axisCamera.bottom=-AXIS_UNITS; axisCamera.updateProjectionMatrix();
     });
 
     // 循环
     (function animate(){
       requestAnimationFrame(animate);
-      controls.update();
-      renderer.render(scene,camera);
+      controls.update(); renderer.render(scene,camera);
       mini.position.set(0,0,0); mini.quaternion.copy(camera.quaternion);
       axisCamera.lookAt(0,0,0); axisRenderer.render(axisScene,axisCamera);
     })();
