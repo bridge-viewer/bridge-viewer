@@ -244,7 +244,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     function fitObject(obj){const b=new THREE.Box3().setFromObject(obj);const s=b.getSize(new THREE.Vector3());
       const c=b.getCenter(new THREE.Vector3());const md=Math.max(s.x,s.y,s.z)||1;const dist=md/(2*Math.tan(Math.PI*camera.fov/360));
-      const dir = new THREE.Vector3(1, 1, 0.5).normalize(); // 调整数值以改变角度
+      const dir = new THREE.Vector3(-1, 1, 0.5).normalize(); // 调整数值以改变角度
       camera.position.copy(c.clone().add(dir.multiplyScalar(dist*2)));
       camera.up.set(0, 0, 1); // 如果要 Z 朝下
       controls.target.copy(c);controls.update();camera.near=Math.max(0.01,dist/1000);camera.far=dist*10000;camera.updateProjectionMatrix();}
