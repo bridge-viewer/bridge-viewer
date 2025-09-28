@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>桥梁地形云图在线查看器</title>
+<title>桥梁水下河床3D声呐模型孪生系统</title>
 <style>
 :root{
   --bg:#cccccc;            /* 场景与图例背景保持一致 */
@@ -84,7 +84,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
   <!-- 顶栏 -->
   <header id="topbar">
     <img id="logo" src="./logo.png" alt="logo"/>
-    <div id="title">桥梁地形云图在线查看器</div>
+    <div id="title">桥梁水下河床3D声呐模型孪生系统</div>
     <div id="brand"><img src="./logo.png" alt="长安大学"/><span class="name">长安大学</span></div>
   </header>
 
@@ -100,7 +100,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     </div>
     <div id="g2" class="row">
       <div class="group" style="grid-column:span 12;flex-wrap:wrap">
-        <button id="modeBtn" class="toggle" aria-pressed="false">网格</button>
+        <button id="modeBtn" class="toggle" aria-pressed="false">曲面</button>
         <label>点大小</label><input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5" style="width:160px">
         <button id="pickBtn" class="toggle" aria-pressed="false">拾取</button>
         <button id="measureBtn" class="toggle" aria-pressed="false">测距</button>
@@ -255,7 +255,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     function clearScene(){if(currentObj){root.remove(currentObj);currentObj.geometry?.dispose?.();currentObj.material?.dispose?.();currentObj=null;}
       clearMeasure();clearPick();hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';}
 
-    /* 渲染对象（默认网格） */
+    /* 渲染对象（默认曲面） */
     function makePoints(geo){const hasColor=!!geo.getAttribute('color');const mat=new THREE.PointsMaterial({size:parseFloat(pointSize.value),vertexColors:hasColor});return new THREE.Points(geo,mat);}
     function makeMesh(geo){if(geo.index) geo=geo.toNonIndexed(); geo.computeVertexNormals?.();const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});return new THREE.Mesh(geo,mat);}
 
@@ -303,7 +303,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     function toggle(btn){btn.setAttribute('aria-pressed', btn.getAttribute('aria-pressed')==='true'?'false':'true');}
     function isOn(btn){return btn.getAttribute('aria-pressed')==='true';}
-    modeBtn.addEventListener('click',()=>{ asPoints=!asPoints; modeBtn.textContent=asPoints?'点云':'网格';
+    modeBtn.addEventListener('click',()=>{ asPoints=!asPoints; modeBtn.textContent=asPoints?'点云':'曲面';
       if(currentObj&&currentScene?.plyUrl) loadPLY(currentScene.plyUrl);});
     pickBtn.addEventListener('click',()=>{ toggle(pickBtn); if(isOn(pickBtn)) pickBtn.textContent='拾取✓'; else pickBtn.textContent='拾取';
       if(isOn(pickBtn)) {measureBtn.setAttribute('aria-pressed','false'); measureBtn.textContent='测距';}});
