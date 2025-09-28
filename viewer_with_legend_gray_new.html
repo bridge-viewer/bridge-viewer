@@ -151,6 +151,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.rotateSpeed = -1; // ← 反转旋转方向
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
