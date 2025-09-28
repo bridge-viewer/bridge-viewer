@@ -114,7 +114,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
   <!-- 左侧图例（标题 + 离散色条 + 刻度） -->
   <aside id="legendDock">
-    <div id="legendTitle">水深 / m</div>
+    <div id="legendTitle">河床深度 / m</div>
     <div id="legendWrap">
       <div id="legendTicks"></div>
       <canvas id="legend" width="24" height="240"></canvas>
@@ -193,7 +193,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
     let pickMarker=null; const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
 
-    /* 图例：固定“水深 / m”，-10~-4，10 段离散（可被 *.legend.json 覆盖范围与颜色） */
+    /* 图例：固定“河床深度 / m”，-10~-4，10 段离散（可被 *.legend.json 覆盖范围与颜色） */
     const legendCv=document.getElementById('legend'); const lctx=legendCv.getContext('2d'); const ticksEl=document.getElementById('legendTicks');
     let legendSpec = {
       min:-10.0, max:-4.0,
