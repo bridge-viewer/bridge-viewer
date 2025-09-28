@@ -140,8 +140,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     /* 场景 */
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
-    const camera = new THREE.PerspectiveCamera(1, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
-    camera.position.set(100,100,100);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
+    camera.position.set(0,100,100);
 
     const renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setPixelRatio(window.devicePixelRatio);
