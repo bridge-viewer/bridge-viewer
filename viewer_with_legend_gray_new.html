@@ -361,6 +361,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         if (currentScene) {
           bridgeSel.value = currentScene.bridgeId;
           const sameBridgeScenes = scenes.filter(s => s.bridgeId === currentScene.bridgeId);
+          dateSel.innerHTML = sameBridgeScenes
+            .map(s => `<option value="${s.id}">${s.date}</option>`)
+            .join('');
           dateSel.value = currentScene.id;
           loadPLY(currentScene.plyUrl);
           return;
