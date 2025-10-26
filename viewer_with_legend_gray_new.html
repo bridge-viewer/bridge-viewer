@@ -341,12 +341,38 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     /* 下拉数据 */
     let bridges=[], scenes=[], currentScene=null;
-    async function loadIndex(){
-      const res=await fetch('./index.json?_='+Date.now()); const data=await res.json();
-      bridges=data.bridges||[]; scenes=data.scenes||[];
-      document.getElementById('bridgeSel').innerHTML=bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-      fillDates(); const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id); if(currentScene) loadPLY(currentScene.plyUrl);
+    function getParam(name){
+      return new URLSearchParams(location.search).get(name);
     }
+    async function loadIndex(){
+      const res = await fetch('./index.json?_=' + Date.now());
+      const data = await res.json();
+      bridges = data.bridges || [];
+      scenes  = data.scenes  || [];
+
+      const bridgeSel = document.getElementById('bridgeSel');
+      const dateSel   = document.getElementById('dateSel');
+
+      bridgeSel.innerHTML = bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
+
+      const sceneId = getParam('scene');
+      if (sceneId) {
+        currentScene = scenes.find(s => s.id === sceneId) || null;
+        if (currentScene) {
+          bridgeSel.value = currentScene.bridgeId;
+          const sameBridgeScenes = scenes.filter(s => s.bridgeId === currentScene.bridgeId);
+          dateSel.value = currentScene.id;
+          loadPLY(currentScene.plyUrl);
+          return;
+       }
+     }
+
+  // 原默认逻辑
+     fillDates();
+     const id = dateSel.value;
+     currentScene = scenes.find(x => x.id === id);
+     if (currentScene) loadPLY(currentScene.plyUrl);
+   }
     function fillDates(){const bid=document.getElementById('bridgeSel').value; const arr=scenes.filter(s=>s.bridgeId===bid);
       document.getElementById('dateSel').innerHTML=arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');}
     document.getElementById('bridgeSel').addEventListener('change',()=>{fillDates(); const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id);});
