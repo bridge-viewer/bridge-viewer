@@ -90,6 +90,16 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
 /* 顶部状态文本（仍保留） */
 #status{margin-left:auto}
+/* —— 一键隐藏：校名/校徽/水印 + 顶部“桥梁/时间/加载”整行 —— */
+#brand,   /* 右上角“长安大学”+校徽 */
+#logo,    /* 左上角小圆徽 */
+#wm,      /* 左下角水印 */
+#topbar,  /* 顶栏（含标题与徽标） */
+#toolbar  /* 整个桥梁/时间/加载那行 */ 
+{ display: none !important; }
+
+/* 隐藏后让三维画布从页面顶开始铺满 */
+#container { top: 0 !important; }
 </style>
 
 <script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
