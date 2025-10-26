@@ -121,6 +121,13 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     </div>
   </aside>
 
+  <!-- 右侧：深度放大（Z 轴，竖向滑条） -->
+  <div id="zPanel" style="position:fixed;right:12px;top:140px;bottom:100px;width:48px;display:flex;flex-direction:column;align-items:center;gap:8px;z-index:26;background:rgba(255,255,255,.85);border-radius:12px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.08);">
+    <div style="font-size:12px;text-align:center;line-height:1.1;">深度<br>放大</div>
+    <input id="zScale" type="range" min="1" max="10" step="0.1" value="1" style="writing-mode:bt-lr;-webkit-appearance:slider-vertical;width:28px;height:100%;" aria-label="深度放大">
+    <div id="zScaleLabel" style="font-size:12px;">×1.0</div>
+  </div>
+
   <!-- 居中进度条 -->
   <div id="progressWrap">
     <div id="progressText">加载中…</div>
@@ -183,6 +190,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const measureBtn=document.getElementById('measureBtn');
     const clearBtn=document.getElementById('clearBtn');
 
+    // 深度放大（Z 轴）
+    const zScaleEl = document.getElementById('zScale');
+    const zScaleLabel = document.getElementById('zScaleLabel');
+
     // 居中进度
     const progressWrap = document.getElementById('progressWrap');
     const progressText = document.getElementById('progressText');
@@ -192,6 +203,13 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const loader=new PLYLoader(); let currentObj=null, asPoints=false;
     let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
     let pickMarker=null; const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
+
+    // —— 新增：当前 Z 倍率 & 应用函数（如为 Y 轴为竖直，请改 set(1,v,1)）——
+    let currentZ = 1;
+    function applyZScale(v){
+      currentZ = v;
+      if(currentObj){ currentObj.scale.set(1, 1, v); }
+    }
 
     /* 图例：固定“河床深度 / m”，-10~-4，10 段离散（可被 *.legend.json 覆盖范围与颜色） */
     const legendCv=document.getElementById('legend'); const lctx=legendCv.getContext('2d'); const ticksEl=document.getElementById('legendTicks');
@@ -275,23 +293,25 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         geo.computeBoundingBox?.();
         currentObj = asPoints? makePoints(geo): makeMesh(geo);
         root.add(currentObj);
+
+        // —— 新增：加载完成后按当前倍率应用 Z 放大 ——
+        applyZScale(currentZ);
+
         fitObject(currentObj);
         statusEl.textContent='加载完成';
         progressFill.style.width='100%';
         progressText.textContent='100%';
         setTimeout(()=>{progressWrap.style.display='none';}, 400);
       },(xhr)=>{
-        // 仅在 total 有值时显示百分比；防止 >100%，这里最多到 99%
         if (xhr.total){
           const pct = Math.min(99, Math.floor(xhr.loaded / xhr.total * 100));
           progressFill.style.width = pct + '%';
           progressText.textContent = pct + '%';
           statusEl.textContent = '下载 ' + pct + '%';
         }else{
-          // 未提供 total：显示动态条（可选简化为文字）
           progressText.textContent = '加载中…';
           const cur = parseFloat(progressFill.style.width) || 0;
-          const nxt = (cur + 2) % 90; // 0~90 来回
+          const nxt = (cur + 2) % 90;
           progressFill.style.width = nxt + '%';
         }
       },(err)=>{
@@ -313,6 +333,15 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     measureBtn.addEventListener('click',()=>{ toggle(measureBtn); if(isOn(measureBtn)) measureBtn.textContent='测距✓'; else measureBtn.textContent='测距';
       if(isOn(measureBtn)) {pickBtn.setAttribute('aria-pressed','false'); pickBtn.textContent='拾取';}});
     clearBtn.addEventListener('click',()=>{ clearMeasure(); clearPick(); hud.textContent='已清除测距/拾取结果'; });
+
+    // —— 新增：绑定“深度放大”滑条 —— 
+    zScaleEl.addEventListener('input', ()=>{
+      const v = parseFloat(zScaleEl.value) || 1;
+      applyZScale(v);
+      zScaleLabel.textContent = '×' + v.toFixed(1);
+    });
+    // 初始应用一次
+    applyZScale(parseFloat(zScaleEl.value) || 1);
 
     /* 主画布点击：拾取/测距（带标记+线段） */
     renderer.domElement.addEventListener('pointerdown',(e)=>{
@@ -370,7 +399,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
        }
      }
 
-  // 原默认逻辑
+     // 原默认逻辑
      fillDates();
      const id = dateSel.value;
      currentScene = scenes.find(x => x.id === id);
