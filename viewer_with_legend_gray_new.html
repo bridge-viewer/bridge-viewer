@@ -428,4 +428,19 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     /* 视图对正 */
     function getCenter(){ if(root.children.length===0) return new THREE.Vector3(); return new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());}
     function distTo(c){ return camera.position.clone().sub(c).length(); }
-    function snapToAxis(a){ const c=getCenter(); const dist=Math.max(1,distTo(c)); let pos
+    function snapToAxis(a){ const c=getCenter(); const dist=Math.max(1,distTo(c)); let pos=new THREE.Vector3(); let up=new THREE.Vector3(0,0,1);
+      if(a==='X'){pos.set(dist,0,0); up.set(0,0,1);} if(a==='Y'){pos.set(0,dist,0); up.set(0,0,1);} if(a==='Z'){pos.set(0,0,dist); up.set(0,1,0);}
+      camera.up.copy(up); camera.position.copy(c.clone().add(pos)); controls.target.copy(c); controls.update(); }
+
+    /* 自适应 */
+    window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/(window.innerHeight-128); camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight-128); axisRenderer.setSize(160,160); });
+
+    /* 渲染循环 */
+    (function ani(){ requestAnimationFrame(ani); controls.update(); renderer.render(scene,camera);
+      mini.quaternion.copy(camera.quaternion); axisCamera.lookAt(0,0,0); axisRenderer.render(axisScene,axisCamera); })();
+
+    loadIndex();
+  </script>
+</body>
+</html>
