@@ -25,7 +25,7 @@
 .row{display:contents}
 .group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
 .group label{font-size:13px;color:var(--muted)}
-select,button,input[type=range]{font-size:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--text);padding:6px 10px}
+select,button,input[type=range]{font-size:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#fff;color:var(--text);padding:6px 10px}
 select{min-width:140px} button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
 .toggle{padding:6px 10px;border-radius:20px;background:var(--primary-weak);border-color:#cbd5ff;color:#2946b8}
 .toggle[aria-pressed="true"]{background:var(--primary);color:#fff;border-color:var(--primary)}
@@ -74,6 +74,20 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 }
 #legendTicks div{height:calc(240px/10); display:flex; align-items:center; justify-content:flex-end; padding-right:2px}
 
+/* 嵌入在图例右侧的“深度放大”竖向滑条（与图例同高） */
+#zPanel{
+  height:240px; width:40px;
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+  background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.15);
+  border-radius:6px; padding:6px 4px;
+}
+#zPanel input[type=range]{
+  writing-mode: bt-lr; -webkit-appearance: slider-vertical;
+  width:26px; height:100%;
+}
+#zPanel .label{font-size:12px;line-height:1.1;text-align:center;color:#333}
+#zPanel .val{font-size:12px;color:#333}
+
 /* 顶部状态文本（仍保留） */
 #status{margin-left:auto}
 </style>
@@ -112,21 +126,21 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
   <!-- 主视区 -->
   <div id="container"></div>
 
-  <!-- 左侧图例（标题 + 离散色条 + 刻度） -->
+  <!-- 左侧图例（标题 + 离散色条 + 刻度 + 深度放大） -->
   <aside id="legendDock">
     <div id="legendTitle">河床深度 / m</div>
     <div id="legendWrap">
       <div id="legendTicks"></div>
       <canvas id="legend" width="24" height="240"></canvas>
+
+      <!-- 把深度放大滑条移到这里，与图例并排 -->
+      <div id="zPanel">
+        <div class="label">深度<br>放大</div>
+        <input id="zScale" type="range" min="1" max="10" step="0.1" value="1" aria-label="深度放大">
+        <div id="zScaleLabel" class="val">×1.0</div>
+      </div>
     </div>
   </aside>
-
-  <!-- 右侧：深度放大（Z 轴，竖向滑条） -->
-  <div id="zPanel" style="position:fixed;right:12px;top:140px;bottom:100px;width:48px;display:flex;flex-direction:column;align-items:center;gap:8px;z-index:26;background:rgba(255,255,255,.85);border-radius:12px;padding:10px;box-shadow:0 4px 16px rgba(0,0,0,.08);">
-    <div style="font-size:12px;text-align:center;line-height:1.1;">深度<br>放大</div>
-    <input id="zScale" type="range" min="1" max="10" step="0.1" value="1" style="writing-mode:bt-lr;-webkit-appearance:slider-vertical;width:28px;height:100%;" aria-label="深度放大">
-    <div id="zScaleLabel" style="font-size:12px;">×1.0</div>
-  </div>
 
   <!-- 居中进度条 -->
   <div id="progressWrap">
@@ -204,11 +218,11 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
     let pickMarker=null; const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
 
-    // —— 新增：当前 Z 倍率 & 应用函数（如为 Y 轴为竖直，请改 set(1,v,1)）——
+    // —— 当前 Z 倍率 & 应用函数（如为 Y 轴为竖直，请改 set(1,v,1)）——
     let currentZ = 1;
     function applyZScale(v){
       currentZ = v;
-      if(currentObj){ currentObj.scale.set(1, 1, v); }
+      if(currentObj){ currentObj.scale.set(1, 1, v); }   // 若竖直为 Y：改为 (1, v, 1)
     }
 
     /* 图例：固定“河床深度 / m”，-10~-4，10 段离散（可被 *.legend.json 覆盖范围与颜色） */
@@ -294,7 +308,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         currentObj = asPoints? makePoints(geo): makeMesh(geo);
         root.add(currentObj);
 
-        // —— 新增：加载完成后按当前倍率应用 Z 放大 ——
+        // —— 加载完成后按当前倍率应用 Z 放大 ——
         applyZScale(currentZ);
 
         fitObject(currentObj);
@@ -334,7 +348,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       if(isOn(measureBtn)) {pickBtn.setAttribute('aria-pressed','false'); pickBtn.textContent='拾取';}});
     clearBtn.addEventListener('click',()=>{ clearMeasure(); clearPick(); hud.textContent='已清除测距/拾取结果'; });
 
-    // —— 新增：绑定“深度放大”滑条 —— 
+    // 绑定“深度放大”滑条（沿 Z 轴 1~10x）
     zScaleEl.addEventListener('input', ()=>{
       const v = parseFloat(zScaleEl.value) || 1;
       applyZScale(v);
@@ -414,19 +428,4 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     /* 视图对正 */
     function getCenter(){ if(root.children.length===0) return new THREE.Vector3(); return new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());}
     function distTo(c){ return camera.position.clone().sub(c).length(); }
-    function snapToAxis(a){ const c=getCenter(); const dist=Math.max(1,distTo(c)); let pos=new THREE.Vector3(); let up=new THREE.Vector3(0,0,1);
-      if(a==='X'){pos.set(dist,0,0); up.set(0,0,1);} if(a==='Y'){pos.set(0,dist,0); up.set(0,0,1);} if(a==='Z'){pos.set(0,0,dist); up.set(0,1,0);}
-      camera.up.copy(up); camera.position.copy(c.clone().add(pos)); controls.target.copy(c); controls.update(); }
-
-    /* 自适应 */
-    window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/(window.innerHeight-128); camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight-128); axisRenderer.setSize(160,160); });
-
-    /* 渲染循环 */
-    (function ani(){ requestAnimationFrame(ani); controls.update(); renderer.render(scene,camera);
-      mini.quaternion.copy(camera.quaternion); axisCamera.lookAt(0,0,0); axisRenderer.render(axisScene,axisCamera); })();
-
-    loadIndex();
-  </script>
-</body>
-</html>
+    function snapToAxis(a){ const c=getCenter(); const dist=Math.max(1,distTo(c)); let pos
