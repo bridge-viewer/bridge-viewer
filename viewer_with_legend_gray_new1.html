@@ -318,6 +318,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       tryLoadLegend(url);
 
       loader.load(url,(geo)=>{
+        
+        console.log("POS ATTR:", geo.getAttribute("position"));
+        console.log("INDEX ATTR:", geo.getIndex());
+
         geo.computeBoundingBox?.();
         currentObj = asPoints? makePoints(geo): makeMesh(geo);
         root.add(currentObj);
