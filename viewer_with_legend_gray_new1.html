@@ -294,7 +294,19 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     /* 渲染对象（默认曲面） */
     function makePoints(geo){const hasColor=!!geo.getAttribute('color');const mat=new THREE.PointsMaterial({size:parseFloat(pointSize.value),vertexColors:hasColor});return new THREE.Points(geo,mat);}
-    function makeMesh(geo){if(geo.index) geo=geo.toNonIndexed(); geo.computeVertexNormals?.();const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});return new THREE.Mesh(geo,mat);}
+    function makeMesh(geo){
+    // 千万不要展开为非索引模型，否则大型 PLY 会渲染失败
+    // if(geo.index) geo = geo.toNonIndexed();
+
+    geo.computeVertexNormals?.();
+
+    const mat = new THREE.MeshLambertMaterial({
+        vertexColors: true,
+        side: THREE.DoubleSide
+    });
+
+    return new THREE.Mesh(geo, mat);
+}
 
     async function loadPLY(url){
       statusEl.textContent='加载中...';
