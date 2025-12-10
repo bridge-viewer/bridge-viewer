@@ -178,6 +178,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
 
     const root = new THREE.Group(); scene.add(root);
+    window.root = root;
 
     /* 小坐标系（正交） */
     const axisScene = new THREE.Scene();
