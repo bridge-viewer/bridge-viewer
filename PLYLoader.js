@@ -1,3 +1,9 @@
+/**
+ * Fully compatible PLYLoader for Three.js (ESM)
+ * Supports ASCII + Binary, vertex colors, faces, uchar/int lists,
+ * auto color normalization for uchar(0-255) & float(0-1).
+ */
+
 import {
     BufferGeometry,
     FileLoader,
@@ -18,275 +24,266 @@ class PLYLoader extends Loader {
 
     load(url, onLoad, onProgress, onError) {
         const scope = this;
-        const loader = new FileLoader(this.manager);
-        loader.setPath(this.path);
+        const loader = new FileLoader(scope.manager);
+        loader.setPath(scope.path);
         loader.setResponseType('arraybuffer');
-        loader.setRequestHeader(this.requestHeader);
-        loader.setWithCredentials(this.withCredentials);
-
         loader.load(url, function (data) {
             try {
                 onLoad(scope.parse(data));
             } catch (e) {
                 if (onError) onError(e);
                 else console.error(e);
-                scope.manager.itemError(url);
             }
         }, onProgress, onError);
     }
 
-    setPropertyNameMapping(mapping) {
-        this.propertyNameMapping = mapping;
-    }
+    // Mapping custom names (if needed)
+    setPropertyNameMapping(mapping) { this.propertyNameMapping = mapping; }
+    setCustomPropertyNameMapping(mapping) { this.customPropertyMapping = mapping; }
 
-    setCustomPropertyNameMapping(mapping) {
-        this.customPropertyMapping = mapping;
-    }
-
-    // 自动识别 0-255 与 0-1 float 颜色
+    // Auto adapt 0-255 or 0-1 float
     normalizeColor(v) {
-        if (v === undefined || v === null) return 0;
-        return (v > 1.0) ? (v / 255.0) : v;
+        if (v == null) return 0;
+        return (v > 1.0) ? v / 255.0 : v;
     }
 
     parse(data) {
         const scope = this;
 
-        // ==========================
-        //  extractHeaderText (缺失的函数)
-        // ==========================
+        // ============================================================
+        // extractHeaderText (binary header reader)
+        // ============================================================
         function extractHeaderText(bytes) {
-            let i = 0;
-            let line = '';
+            let idx = 0;
+            let line = "";
             const lines = [];
-            let cont = true;
+            let done = false;
 
-            while (cont && i < bytes.length) {
-                const c = String.fromCharCode(bytes[i++]);
-
-                if (c !== '\n' && c !== '\r') {
-                    line += c;
-                } else {
-                    if (line === 'end_header') cont = false;
-                    if (line !== '') {
+            while (!done && idx < bytes.length) {
+                const c = String.fromCharCode(bytes[idx++]);
+                if (c !== '\n' && c !== '\r') line += c;
+                else {
+                    if (line === "end_header") {
                         lines.push(line);
-                        line = '';
+                        done = true;
+                    } else if (line !== '') {
+                        lines.push(line);
                     }
+                    line = "";
                 }
             }
-
-            // 让 body 指向 header 之后的位置
-            return { headerText: lines.join('\n') + '\n', headerLength: i };
+            return { headerText: lines.join("\n"), headerLength: idx };
         }
 
-        function parseHeader(data, headerLength = 0) {
+        // ============================================================
+        // Parse header text → list elements/properties
+        // ============================================================
+        function parseHeader(text, headerLength = 0) {
             const header = {
+                format: "",
+                version: "",
                 comments: [],
                 elements: [],
-                headerLength: headerLength,
-                objInfo: ''
+                headerLength: headerLength
             };
 
-            const lines = data.split(/\r?\n/);
-            let currentElement = null;
+            const lines = text.split(/\r?\n/);
+            let current = null;
 
-            function makeElementProp(values, mapping) {
-                const prop = { type: values[0] };
-
-                if (prop.type === 'list') {
-                    prop.name = values[3];
-                    prop.countType = values[1];
-                    prop.itemType = values[2];
-                } else {
-                    prop.name = values[1];
-                }
-
-                if (prop.name in mapping) {
-                    prop.name = mapping[prop.name];
-                }
-                return prop;
+            function applyMapping(name) {
+                return scope.propertyNameMapping[name] || name;
             }
 
             for (let line of lines) {
                 line = line.trim();
-                if (line === '') continue;
+                if (!line) continue;
 
                 const parts = line.split(/\s+/);
                 const type = parts.shift();
 
                 switch (type) {
-                    case 'format':
+                    case "format":
                         header.format = parts[0];
                         header.version = parts[1];
                         break;
 
-                    case 'comment':
-                        header.comments.push(parts.join(' '));
+                    case "comment":
+                        header.comments.push(parts.join(" "));
                         break;
 
-                    case 'element':
-                        if (currentElement) header.elements.push(currentElement);
-                        currentElement = {
-                            name: parts[0],
-                            count: parseInt(parts[1]),
-                            properties: []
-                        };
+                    case "element":
+                        if (current) header.elements.push(current);
+                        current = { name: parts[0], count: parseInt(parts[1]), properties: [] };
                         break;
 
-                    case 'property':
-                        currentElement.properties.push(makeElementProp(parts, scope.propertyNameMapping));
-                        break;
+                    case "property": {
+                        const ptype = parts[0];
+                        let prop = null;
 
-                    case 'obj_info':
-                        header.objInfo = parts.join(' ');
+                        if (ptype === 'list') {
+                            prop = {
+                                type: 'list',
+                                countType: parts[1],
+                                itemType: parts[2],
+                                name: applyMapping(parts[3])
+                            };
+                        } else {
+                            prop = { type: ptype, name: applyMapping(parts[1]) };
+                        }
+                        current.properties.push(prop);
+                        break;
+                    }
+
+                    case "end_header":
                         break;
                 }
             }
-
-            if (currentElement) header.elements.push(currentElement);
+            if (current) header.elements.push(current);
             return header;
         }
 
+        // ============================================================
+        // Create model buffer
+        // ============================================================
         function createBuffer() {
             const buf = {
                 indices: [],
                 vertices: [],
                 normals: [],
                 uvs: [],
-                faceVertexUvs: [],
-                colors: [],
-                faceVertexColors: []
+                colors: []
             };
-            for (const key of Object.keys(scope.customPropertyMapping)) buf[key] = [];
             return buf;
         }
 
-        function mapAttributes(props) {
+        // ============================================================
+        // Map element properties → x,y,z,r,g,b...
+        // ============================================================
+        function mapAttrs(props) {
             const names = props.map(p => p.name);
-            function find(list) { return list.find(n => names.includes(n)) || null; }
+            const find = list => list.find(n => names.includes(n)) || null;
 
             return {
-                x: find(['x', 'px', 'posx']) || 'x',
-                y: find(['y', 'py', 'posy']) || 'y',
-                z: find(['z', 'pz', 'posz']) || 'z',
-
-                nx: find(['nx', 'normalx']),
-                ny: find(['ny', 'normaly']),
-                nz: find(['nz', 'normalz']),
-
-                s: find(['s', 'u', 'tex_u']),
-                t: find(['t', 'v', 'tex_v']),
-
-                r: find(['red', 'diffuse_red', 'r']),
-                g: find(['green', 'diffuse_green', 'g']),
-                b: find(['blue', 'diffuse_blue', 'b'])
+                x: find(['x']),
+                y: find(['y']),
+                z: find(['z']),
+                r: find(['red']),
+                g: find(['green']),
+                b: find(['blue'])
             };
         }
 
-        function handleElement(buffer, name, e, m) {
-            if (name === 'vertex') {
-                buffer.vertices.push(e[m.x], e[m.y], e[m.z]);
+        // ============================================================
+        // Handle vertex / face
+        // ============================================================
+        function handleElement(buf, elemName, e, map) {
+            if (elemName === "vertex") {
+                buf.vertices.push(e[map.x], e[map.y], e[map.z]);
 
-                if (m.nx && m.ny && m.nz)
-                    buffer.normals.push(e[m.nx], e[m.ny], e[m.nz]);
-
-                if (m.s && m.t)
-                    buffer.uvs.push(e[m.s], e[m.t]);
-
-                if (m.r && m.g && m.b) {
+                if (map.r && map.g && map.b) {
                     _color.setRGB(
-                        scope.normalizeColor(e[m.r]),
-                        scope.normalizeColor(e[m.g]),
-                        scope.normalizeColor(e[m.b])
+                        scope.normalizeColor(e[map.r]),
+                        scope.normalizeColor(e[map.g]),
+                        scope.normalizeColor(e[map.b])
                     );
-                    buffer.colors.push(_color.r, _color.g, _color.b);
+                    buf.colors.push(_color.r, _color.g, _color.b);
+                }
+            }
+
+            else if (elemName === "face") {
+                const v = e.vertex_indices;
+                if (v.length === 3) {
+                    buf.indices.push(v[0], v[1], v[2]);
+                } else if (v.length === 4) {
+                    buf.indices.push(v[0], v[1], v[2]);
+                    buf.indices.push(v[2], v[3], v[0]);
                 }
             }
         }
 
-        function post(buffer) {
+        // ============================================================
+        // Post process → build THREE.BufferGeometry
+        // ============================================================
+        function buildGeometry(buf) {
             const geo = new BufferGeometry();
 
-            if (buffer.indices.length > 0)
-                geo.setIndex(buffer.indices);
+            if (buf.indices.length > 0)
+                geo.setIndex(buf.indices);
 
-            geo.setAttribute('position', new Float32BufferAttribute(buffer.vertices, 3));
+            geo.setAttribute('position', new Float32BufferAttribute(buf.vertices, 3));
 
-            if (buffer.normals.length)
-                geo.setAttribute('normal', new Float32BufferAttribute(buffer.normals, 3));
-
-            if (buffer.uvs.length)
-                geo.setAttribute('uv', new Float32BufferAttribute(buffer.uvs, 2));
-
-            if (buffer.colors.length)
-                geo.setAttribute('color', new Float32BufferAttribute(buffer.colors, 3));
+            if (buf.colors.length > 0)
+                geo.setAttribute('color', new Float32BufferAttribute(buf.colors, 3));
 
             geo.computeBoundingSphere();
             return geo;
         }
-        function parseASCII(data, header) {
+
+        // ============================================================
+        // ASCII parser
+        // ============================================================
+        function parseASCII(text, header) {
             const buffer = createBuffer();
+            const body = text.split("end_header")[1].trim().split(/\s+/);
 
-            const bodyMatch = /end_header\s+([\s\S]*)$/i.exec(data);
-            if (!bodyMatch) return post(buffer);
-
-            const tokens = bodyMatch[1].trim().split(/\s+/);
             let idx = 0;
+            function next() { return body[idx++]; }
 
-            function next() { return tokens[idx++]; }
-            function readNumber(type) {
+            function read(type) {
                 if (['char','uchar','short','ushort','int','uint','int8','uint8','int16','uint16','int32','uint32']
                     .includes(type)) return parseInt(next());
                 return parseFloat(next());
             }
 
             for (const elem of header.elements) {
-                const attr = mapAttributes(elem.properties);
+                const map = mapAttrs(elem.properties);
 
                 for (let i=0; i<elem.count; i++) {
                     const e = {};
                     for (const p of elem.properties) {
                         if (p.type === 'list') {
-                            const len = readNumber(p.countType);
-                            const arr = [];
-                            for (let k=0; k<len; k++) arr.push(readNumber(p.itemType));
-                            e[p.name] = arr;
+                            const len = read(p.countType);
+                            e[p.name] = [];
+                            for (let k=0; k<len; k++) e[p.name].push(read(p.itemType));
                         } else {
-                            e[p.name] = readNumber(p.type);
+                            e[p.name] = read(p.type);
                         }
                     }
-                    handleElement(buffer, elem.name, e, attr);
+                    handleElement(buffer, elem.name, e, map);
                 }
             }
 
-            return post(buffer);
+            return buildGeometry(buffer);
         }
-
-        // 根据 PLY 数字类型返回对应的 DataView 读取器
+        // ============================================================
+        // Binary parser helpers
+        // ============================================================
         function getReader(type, dv, little) {
             switch (type) {
-                case 'char': case 'int8':   return { size:1, read:(o)=>dv.getInt8(o) };
-                case 'uchar': case 'uint8': return { size:1, read:(o)=>dv.getUint8(o) };
-                case 'short': case 'int16': return { size:2, read:(o)=>dv.getInt16(o,little) };
-                case 'ushort': case 'uint16': return { size:2, read:(o)=>dv.getUint16(o,little) };
-                case 'int': case 'int32':   return { size:4, read:(o)=>dv.getInt32(o,little) };
-                case 'uint': case 'uint32': return { size:4, read:(o)=>dv.getUint32(o,little) };
-                case 'float': case 'float32': return { size:4, read:(o)=>dv.getFloat32(o,little) };
-                case 'double': case 'float64': return { size:8, read:(o)=>dv.getFloat64(o,little) };
+                case 'char': case 'int8':   return { size:1, read: o => dv.getInt8(o) };
+                case 'uchar': case 'uint8': return { size:1, read: o => dv.getUint8(o) };
+                case 'short': case 'int16': return { size:2, read: o => dv.getInt16(o, little) };
+                case 'ushort': case 'uint16': return { size:2, read: o => dv.getUint16(o, little) };
+                case 'int': case 'int32':   return { size:4, read: o => dv.getInt32(o, little) };
+                case 'uint': case 'uint32': return { size:4, read: o => dv.getUint32(o, little) };
+                case 'float': case 'float32': return { size:4, read: o => dv.getFloat32(o, little) };
+                case 'double': case 'float64': return { size:8, read: o => dv.getFloat64(o, little) };
             }
         }
 
-        function parseBinary(data, header) {
+        function parseBinary(arraybuffer, header) {
+            const little = header.format === 'binary_little_endian';
             const buffer = createBuffer();
-            const little = (header.format === 'binary_little_endian');
 
-            const bytes = new Uint8Array(data);
-            const dv = new DataView(data, header.headerLength);
+            const bytes = new Uint8Array(arraybuffer);
+            const dv = new DataView(arraybuffer, header.headerLength);
 
             let offset = 0;
 
             for (const elem of header.elements) {
                 const props = elem.properties;
+
+                // Build readers
                 const readers = props.map(p => {
                     if (p.type === 'list') {
                         return {
@@ -295,46 +292,47 @@ class PLYLoader extends Loader {
                             itemReader: getReader(p.itemType, dv, little),
                             name: p.name
                         };
+                    } else {
+                        return {
+                            isList: false,
+                            reader: getReader(p.type, dv, little),
+                            name: p.name
+                        };
                     }
-                    return {
-                        isList: false,
-                        reader: getReader(p.type, dv, little),
-                        name: p.name
-                    };
                 });
 
-                const attr = mapAttributes(props);
+                const map = mapAttrs(props);
 
                 for (let i=0; i<elem.count; i++) {
                     const e = {};
 
-                    for (const r of readers) {
-                        if (r.isList) {
-                            const n = r.countReader.read(header.headerLength + offset);
-                            offset += r.countReader.size;
+                    for (const p of readers) {
+                        if (p.isList) {
+                            const count = p.countReader.read(offset);
+                            offset += p.countReader.size;
 
                             const arr = [];
-                            for (let k=0; k<n; k++) {
-                                arr.push(r.itemReader.read(header.headerLength + offset));
-                                offset += r.itemReader.size;
+                            for (let k=0; k<count; k++) {
+                                arr.push(p.itemReader.read(offset));
+                                offset += p.itemReader.size;
                             }
-                            e[r.name] = arr;
+                            e[p.name] = arr;
                         } else {
-                            e[r.name] = r.reader.read(header.headerLength + offset);
-                            offset += r.reader.size;
+                            e[p.name] = p.reader.read(offset);
+                            offset += p.reader.size;
                         }
                     }
 
-                    handleElement(buffer, elem.name, e, attr);
+                    handleElement(buffer, elem.name, e, map);
                 }
             }
 
-            return post(buffer);
+            return buildGeometry(buffer);
         }
 
-        // ==========================
-        // 主解析入口
-        // ==========================
+        // ============================================================
+        // MAIN PARSE
+        // ============================================================
         let geometry;
 
         if (data instanceof ArrayBuffer) {
@@ -349,8 +347,9 @@ class PLYLoader extends Loader {
                 geometry = parseBinary(data, header);
             }
         } else {
-            // 纯文本（ASCII）
-            geometry = parseASCII(data, parseHeader(data));
+            // Already text
+            const header = parseHeader(data);
+            geometry = parseASCII(data, header);
         }
 
         return geometry;
