@@ -6,14 +6,13 @@
 <title>桥梁水下河床3D声呐模型孪生系统</title>
 <style>
 :root{
-  --bg:#cccccc;            /* 场景与图例背景保持一致 */
+  --bg:#cccccc;
   --panel:#ffffffee; --text:#222; --muted:#667085;
   --primary:#315cf0; --primary-weak:#e7ecff; --border:#d9d9d9; --shadow:0 6px 20px rgba(0,0,0,.08);
   --safe-b: env(safe-area-inset-bottom, 12px);
 }
 *{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei",sans-serif;color:var(--text);}
 
-/* 顶栏 + 工具栏 */
 #topbar{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
 #logo{width:32px;height:32px;border-radius:50%}
 #title{font-size:16px;font-weight:700}
@@ -33,17 +32,14 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 #g1{grid-column:span 12} #g2{grid-column:span 12}
 @media (min-width:860px){ #g1{grid-column:span 7} #g2{grid-column:span 5} }
 
-/* 主视区 */
 #container{position:fixed;inset:0;top:128px}
 
-/* 底部 HUD / 水印 / 小坐标系：永远在可视底部（手机也可见） */
 #hud{position:fixed;left:12px;bottom:var(--safe-b);transform:translateY(-6px);background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:24}
 #wm{position:fixed;left:12px;bottom:calc(var(--safe-b) + 64px);opacity:.10;z-index:10;pointer-events:none}
 #wm img{width:96px;height:96px;object-fit:contain}
 #axisWrap{position:fixed;right:12px;bottom:var(--safe-b);width:160px;height:160px;pointer-events:none;z-index:24}
 #axisCanvas{position:absolute;inset:0;width:160px;height:160px;background:transparent;pointer-events:auto}
 
-/* 居中加载进度条 */
 #progressWrap{
   position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
   min-width:240px; padding:12px 16px; background:rgba(0,0,0,.7); color:#fff;
@@ -53,7 +49,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 #progressBar{width:100%; height:10px; background:rgba(255,255,255,.25); border-radius:999px; overflow:hidden; margin-top:8px}
 #progressFill{height:100%; width:0%; background:#4ad5ff; border-radius:999px; transition:width .2s ease}
 
-/* 左侧图例：背景匹配场景色；刻度 Times New Roman，靠近色带并置于其左侧 */
 #legendDock{
   position:fixed; left:12px; top:50%; transform:translateY(-50%); z-index:22;
   display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none;
@@ -74,7 +69,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 }
 #legendTicks div{height:calc(240px/10); display:flex; align-items:center; justify-content:flex-end; padding-right:2px}
 
-/* 嵌入在图例右侧的“深度放大”竖向滑条（与图例同高） */
 #zPanel{
   height:240px; width:40px;
   display:flex; flex-direction:column; align-items:center; gap:6px;
@@ -88,28 +82,21 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 #zPanel .label{font-size:12px;line-height:1.1;text-align:center;color:#333}
 #zPanel .val{font-size:12px;color:#333}
 
-/* 顶部状态文本（仍保留） */
 #status{margin-left:auto}
+
 /* 隐藏校名/校徽/水印 + 只隐藏“第一行”桥梁/时间/加载 */
-#brand,   /* 右上角“长安大学”+校徽 */
-#logo,    /* 左上角校徽 */
-#wm,      /* 左下角水印 */
-#topbar,  /* 整个顶栏 */
-#g1       /* 工具栏的第一行：桥梁/时间/加载 */
-{ display: none !important; }
+#brand,#logo,#wm,#topbar,#g1{ display:none !important; }
 </style>
 
 <script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
 </head>
 <body>
-  <!-- 顶栏 -->
   <header id="topbar">
     <img id="logo" src="./logo.png" alt="logo"/>
     <div id="title">桥梁水下河床3D声呐模型孪生系统</div>
     <div id="brand"><img src="./logo.png" alt="长安大学"/><span class="name">长安大学</span></div>
   </header>
 
-  <!-- 工具栏（两行） -->
   <section id="toolbar">
     <div id="g1" class="row">
       <div class="group" style="grid-column:span 12;">
@@ -130,17 +117,14 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     </div>
   </section>
 
-  <!-- 主视区 -->
   <div id="container"></div>
 
-  <!-- 左侧图例（标题 + 离散色条 + 刻度 + 深度放大） -->
   <aside id="legendDock">
     <div id="legendTitle">河床深度 / m</div>
     <div id="legendWrap">
       <div id="legendTicks"></div>
       <canvas id="legend" width="24" height="240"></canvas>
 
-      <!-- 把深度放大滑条移到这里，与图例并排 -->
       <div id="zPanel">
         <div class="label">深度<br>放大</div>
         <input id="zScale" type="range" min="1" max="10" step="0.1" value="1" aria-label="深度放大">
@@ -149,27 +133,26 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     </div>
   </aside>
 
-  <!-- 居中进度条 -->
   <div id="progressWrap">
     <div id="progressText">加载中…</div>
     <div id="progressBar"><div id="progressFill"></div></div>
   </div>
 
-  <!-- 底部 HUD / 小坐标系 / 水印 -->
   <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
   <div id="axisWrap"><canvas id="axisCanvas" width="160" height="160"></canvas></div>
   <div id="wm"><img src="./logo.png" alt="长安大学水印"/></div>
 
   <script type="module">
     import * as THREE from 'three';
-    import { OrbitControls } from './OrbitControls.js';
     import { PLYLoader } from './PLYLoader.js';
 
     /* 场景 */
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
     camera.position.set(100,100,100);
+    camera.up.set(0,0,1); // 你的坐标系是 Z 竖直
 
     const renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -177,35 +160,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     document.getElementById('container').appendChild(renderer.domElement);
     renderer.domElement.tabIndex = 0;
 
-    // 右键平移时不弹出系统菜单
+    // 右键不弹系统菜单
     renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
-
-    // —— OrbitControls：SolidWorks 风格（中键旋转，滚轮缩放，中心为中键按下点）——
-    const controls = new OrbitControls(camera, renderer.domElement);
-    controls.enableDamping = true;
-    controls.dampingFactor = 0.08;
-
-    // 旋转速度：降低一点更“稳”；方向保持你原来的反转
-    controls.rotateSpeed = -0.7;
-
-    // 滚轮缩放速度
-    controls.zoomSpeed = 0.9;
-
-    // 左键留给拾取/测距，不再操控视角
-    controls.mouseButtons.LEFT = -1;
-
-    // 中键按住拖动：旋转
-    controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
-
-    // 右键：平移（不需要可禁用）
-    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
-
-    // 缩放朝鼠标（若 OrbitControls 版本不支持，会自动跳过）
-    if ('zoomToCursor' in controls) controls.zoomToCursor = true;
-
-    // 如果你不想右键平移：打开下面两行
-    // controls.enablePan = false;
-    // controls.mouseButtons.RIGHT = -1;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
@@ -237,11 +193,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const measureBtn=document.getElementById('measureBtn');
     const clearBtn=document.getElementById('clearBtn');
 
-    // 深度放大（Z 轴）
     const zScaleEl = document.getElementById('zScale');
     const zScaleLabel = document.getElementById('zScaleLabel');
 
-    // 居中进度
     const progressWrap = document.getElementById('progressWrap');
     const progressText = document.getElementById('progressText');
     const progressFill = document.getElementById('progressFill');
@@ -249,74 +203,287 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     /* 变量 */
     const loader=new PLYLoader(); let currentObj=null, asPoints=false;
     let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
-    let pickMarker=null; const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
+    let pickMarker=null;
 
-    // —— SolidWorks：中键按下瞬间设置旋转中心（以鼠标所在位置为中心）——
-    {
-      const _pivot = new THREE.Vector3();
-      const _camDir = new THREE.Vector3();
-      const _v = new THREE.Vector3();
-      const _perp = new THREE.Vector3();
-      const _plane = new THREE.Plane();
+    const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
 
-      renderer.domElement.addEventListener('pointerdown', (e) => {
-        // 只处理鼠标中键（滚轮按下）
-        if (e.pointerType !== 'mouse' || e.button !== 1) return;
-        if (!camera || !controls) return;
+    // 作为“视图参考点/默认平面基准点”（不会强制影响画面）
+    const orbitTarget = new THREE.Vector3(0,0,0);
 
-        const r = renderer.domElement.getBoundingClientRect();
-        mouse.set(
-          ((e.clientX - r.left) / r.width) * 2 - 1,
-          -((e.clientY - r.top) / r.height) * 2 + 1
-        );
-
-        rc.setFromCamera(mouse, camera);
-
-        // 点云拾取阈值：按场景尺度自适应
-        rc.params.Points.threshold = sceneScale() * 0.01;
-
-        // 1) 优先射线命中模型表面/点云
-        let hitPoint = null;
-        if (currentObj) {
-          const hits = rc.intersectObject(currentObj, true);
-          if (hits.length) hitPoint = hits[0].point;
-        }
-
-        // 2) 没命中：落到经过当前 controls.target 的“视平面”
-        if (hitPoint) {
-          _pivot.copy(hitPoint);
-        } else {
-          camera.getWorldDirection(_camDir);
-          _plane.setFromNormalAndCoplanarPoint(_camDir, controls.target);
-          const p = rc.ray.intersectPlane(_plane, _pivot);
-          if (!p) _pivot.copy(controls.target);
-        }
-
-        // 3) 避免“按下中键瞬间画面跳动”：
-        //    通过横向平移相机，使得设置新 target 后视线方向尽量不变
-        camera.getWorldDirection(_camDir);
-        _v.subVectors(_pivot, camera.position);                   // cam -> pivot
-        _perp.copy(_v).addScaledVector(_camDir, -_v.dot(_camDir));// 去掉平行分量得到垂直分量
-        camera.position.add(_perp);                               // 横移相机
-
-        controls.target.copy(_pivot);
-        controls.update();
-      }, true); // capture：先于 OrbitControls 的 pointerdown 执行
+    function lookAtTarget(){
+      camera.lookAt(orbitTarget);
+      camera.updateMatrixWorld();
     }
 
-    // —— 当前 Z 倍率 & 应用函数（如为 Y 轴为竖直，请改 set(1,v,1)）——
+    /* 工具函数 */
+    function sceneScale(){
+      const b=new THREE.Box3().setFromObject(root);
+      const s=b.getSize(new THREE.Vector3());
+      return Math.max(s.x,s.y,s.z)||1;
+    }
+
+    function pickPointFromEvent(e){
+      const r = renderer.domElement.getBoundingClientRect();
+      mouse.set(
+        ((e.clientX - r.left)/r.width)*2 - 1,
+        -((e.clientY - r.top)/r.height)*2 + 1
+      );
+
+      rc.setFromCamera(mouse, camera);
+      rc.params.Points.threshold = sceneScale() * 0.01;
+
+      // 优先打到模型
+      if (currentObj){
+        const hits = rc.intersectObject(currentObj, true);
+        if (hits.length) return hits[0].point.clone();
+      }
+
+      // 没打到：落在经过 orbitTarget 的视平面
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, orbitTarget);
+      const p = new THREE.Vector3();
+      const ok = rc.ray.intersectPlane(plane, p);
+      return ok ? p : orbitTarget.clone();
+    }
+
+    /* ========= SolidWorks 风格相机交互（不使用 OrbitControls，避免“点击跳转”和“极点卡死”） ========= */
+
+    // 旋转（中键按住拖动）
+    let isRotating=false, isPanning=false;
+    let activePointerId=null;
+    let lastX=0, lastY=0;
+    const rotatePivot = new THREE.Vector3();
+
+    const ROTATE_SPEED = 1.0; // 越大越快（建议 0.6~1.2）
+    const ZOOM_SPEED = 0.0016; // 越大越敏感（建议 0.0012~0.0022）
+
+    function applyTrackballRotation(dx, dy){
+      const el = renderer.domElement;
+      const w = el.clientWidth || 1;
+      const h = el.clientHeight || 1;
+
+      // 鼠标移动映射到角度（横向一整屏约 360°）
+      const ax = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
+      const ay = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
+
+      // 相机局部轴（转到世界）
+      const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize();
+      const up    = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();
+
+      const qYaw   = new THREE.Quaternion().setFromAxisAngle(up, ax);
+      const qPitch = new THREE.Quaternion().setFromAxisAngle(right, ay);
+
+      // yaw 再 pitch
+      const q = qYaw.multiply(qPitch);
+
+      // 关键：位置绕 pivot 旋转，同时相机姿态也 premultiply 同一个 q
+      // 这样 pivot 在屏幕上的位置不会被强行拉到“视角中心”，也不会在按下中键时跳变
+      camera.position.sub(rotatePivot).applyQuaternion(q).add(rotatePivot);
+      camera.quaternion.premultiply(q);
+      camera.updateMatrixWorld();
+    }
+
+    function applyPan(dx, dy){
+      const el = renderer.domElement;
+      const h = el.clientHeight || 1;
+
+      // 按到参考点的距离决定平移尺度（CAD手感）
+      const dist = Math.max(0.0001, camera.position.distanceTo(orbitTarget));
+      const vFov = THREE.MathUtils.degToRad(camera.fov);
+      const worldPerPixel = 2 * dist * Math.tan(vFov/2) / h;
+
+      const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize();
+      const up    = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();
+
+      const pan = new THREE.Vector3();
+      pan.addScaledVector(right, -dx * worldPerPixel);
+      pan.addScaledVector(up,    dy * worldPerPixel);
+
+      camera.position.add(pan);
+      orbitTarget.add(pan);
+      rotatePivot.add(pan); // 如果正在旋转，pivot 也一起平移保持一致
+      camera.updateMatrixWorld();
+    }
+
+    renderer.domElement.addEventListener('pointerdown', (e)=>{
+      if (e.pointerType !== 'mouse') return;
+
+      // 中键：设置旋转中心，但不改变画面（不跳）
+      if (e.button === 1){
+        e.preventDefault(); e.stopPropagation();
+        activePointerId = e.pointerId;
+        renderer.domElement.setPointerCapture(activePointerId);
+
+        isRotating = true; isPanning = false;
+        lastX = e.clientX; lastY = e.clientY;
+
+        rotatePivot.copy(pickPointFromEvent(e));
+        // 只更新“参考点”，不会改变视角，因此不会出现你说的“单击就强制移动中心点”
+        orbitTarget.copy(rotatePivot);
+        return;
+      }
+
+      // 右键：平移（可保留；不需要可删除这一段）
+      if (e.button === 2){
+        e.preventDefault(); e.stopPropagation();
+        activePointerId = e.pointerId;
+        renderer.domElement.setPointerCapture(activePointerId);
+
+        isPanning = true; isRotating = false;
+        lastX = e.clientX; lastY = e.clientY;
+        return;
+      }
+    }, true);
+
+    renderer.domElement.addEventListener('pointermove', (e)=>{
+      if (activePointerId == null || e.pointerId !== activePointerId) return;
+      if (!isRotating && !isPanning) return;
+
+      const dx = e.clientX - lastX;
+      const dy = e.clientY - lastY;
+      lastX = e.clientX; lastY = e.clientY;
+
+      if (isRotating){
+        applyTrackballRotation(dx, dy); // ✅ 不会在“Z轴正向上”卡死
+      } else if (isPanning){
+        applyPan(dx, dy);
+      }
+    }, true);
+
+    function endPointer(e){
+      if (activePointerId == null || e.pointerId !== activePointerId) return;
+      try{ renderer.domElement.releasePointerCapture(activePointerId); }catch(_){}
+      activePointerId = null;
+      isRotating = false;
+      isPanning = false;
+    }
+    renderer.domElement.addEventListener('pointerup', endPointer, true);
+    renderer.domElement.addEventListener('pointercancel', endPointer, true);
+
+    // 滚轮缩放：以鼠标所在位置的3D点作为缩放参考（更像 CAD）
+    renderer.domElement.addEventListener('wheel', (e)=>{
+      e.preventDefault();
+
+      const zoomPoint = pickPointFromEvent(e);
+      orbitTarget.copy(zoomPoint); // 更新参考点，不会造成跳变，只影响之后的平移尺度/默认平面
+
+      // deltaY > 0：缩小（远离）；deltaY < 0：放大（靠近）
+      const scale = Math.exp(e.deltaY * ZOOM_SPEED);
+
+      const v = camera.position.clone().sub(zoomPoint);
+      const curLen = v.length();
+      const minLen = Math.max(0.02, sceneScale()*0.0005);
+      const nextLen = curLen * scale;
+      if (nextLen < minLen) return;
+
+      v.multiplyScalar(scale);
+      camera.position.copy(zoomPoint.clone().add(v));
+      camera.updateMatrixWorld();
+    }, { passive:false });
+
+    /* ========= 业务逻辑（原有） ========= */
+
+    function makeMarker(color){
+      const s=sceneScale()*0.012;
+      const g=new THREE.SphereGeometry(s,16,16);
+      const m=new THREE.MeshBasicMaterial({color});
+      const o=new THREE.Mesh(g,m);
+      const edge=new THREE.Mesh(
+        new THREE.SphereGeometry(s*1.35,16,16),
+        new THREE.MeshBasicMaterial({color:0xffffff,opacity:.85,transparent:true})
+      );
+      const grp=new THREE.Group(); grp.add(edge); grp.add(o); return grp;
+    }
+
+    function makeMeasureLine(a,b){
+      const geo=new THREE.BufferGeometry().setFromPoints([a,b]);
+      const mat=new THREE.LineBasicMaterial({color:0x00e0ff,linewidth:2,transparent:true,opacity:.95});
+      return new THREE.Line(geo,mat);
+    }
+
+    function updateMeasureLine(){
+      if(measureLine&&measureA&&measureB){
+        const p=measureLine.geometry.attributes.position.array;
+        p[0]=measureA.x;p[1]=measureA.y;p[2]=measureA.z;
+        p[3]=measureB.x;p[4]=measureB.y;p[5]=measureB.z;
+        measureLine.geometry.attributes.position.needsUpdate=true;
+        measureLine.geometry.computeBoundingSphere?.();
+      }
+    }
+
+    function fitObject(obj){
+      const b=new THREE.Box3().setFromObject(obj);
+      const s=b.getSize(new THREE.Vector3());
+      const c=b.getCenter(new THREE.Vector3());
+      orbitTarget.copy(c);
+
+      const md=Math.max(s.x,s.y,s.z)||1;
+      const dist=md/(2*Math.tan(Math.PI*camera.fov/360));
+      const dir = new THREE.Vector3(-1, 1, 0.5).normalize();
+      camera.position.copy(c.clone().add(dir.multiplyScalar(dist*2)));
+
+      camera.near=Math.max(0.01,dist/1000);
+      camera.far=dist*10000;
+      camera.updateProjectionMatrix();
+
+      // 用 lookAt 初始化一次（后续旋转不再依赖 lookAt，避免“极点/卡死”问题）
+      camera.up.set(0,0,1);
+      lookAtTarget();
+    }
+
+    function clearMeasure(){
+      measureA=measureB=null;
+      if(measureLine){root.remove(measureLine);measureLine.geometry.dispose();measureLine.material.dispose();measureLine=null;}
+      if(measureAMarker){root.remove(measureAMarker);measureAMarker=null;}
+      if(measureBMarker){root.remove(measureBMarker);measureBMarker=null;}
+    }
+
+    function clearPick(){
+      if(pickMarker){root.remove(pickMarker);pickMarker=null;}
+    }
+
+    function clearScene(){
+      if(currentObj){
+        root.remove(currentObj);
+        currentObj.geometry?.dispose?.();
+        currentObj.material?.dispose?.();
+        currentObj=null;
+      }
+      clearMeasure();clearPick();
+      hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';
+    }
+
+    function makePoints(geo){
+      const hasColor=!!geo.getAttribute('color');
+      const mat=new THREE.PointsMaterial({size:parseFloat(pointSize.value),vertexColors:hasColor});
+      return new THREE.Points(geo,mat);
+    }
+
+    function makeMesh(geo){
+      if(geo.index) geo=geo.toNonIndexed();
+      geo.computeVertexNormals?.();
+      const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
+      return new THREE.Mesh(geo,mat);
+    }
+
+    // 深度放大（Z 轴）
     let currentZ = 1;
     function applyZScale(v){
       currentZ = v;
-      if(currentObj){ currentObj.scale.set(1, 1, v); }   // 若竖直为 Y：改为 (1, v, 1)
+      if(currentObj){ currentObj.scale.set(1, 1, v); } // 若竖直为 Y：改为 (1, v, 1)
     }
 
-    /* 图例：固定“河床深度 / m”，-10~-4，10 段离散（可被 *.legend.json 覆盖范围与颜色） */
-    const legendCv=document.getElementById('legend'); const lctx=legendCv.getContext('2d'); const ticksEl=document.getElementById('legendTicks');
+    /* 图例 */
+    const legendCv=document.getElementById('legend');
+    const lctx=legendCv.getContext('2d');
+    const ticksEl=document.getElementById('legendTicks');
+
     let legendSpec = {
       min:-10.0, max:-4.0,
-      colors: ['#0010a8','#123fdf','#1491ff','#18cfff','#18fffb','#55ff13','#c7ff00','#ffd200','#ff7a00','#e10000'] // 底→顶
+      colors: ['#0010a8','#123fdf','#1491ff','#18cfff','#18fffb','#55ff13','#c7ff00','#ffd200','#ff7a00','#e10000']
     };
+
     function drawLegendDiscrete(){
       const n=legendSpec.colors.length, w=legendCv.width, h=legendCv.height, seg=h/n;
       lctx.clearRect(0,0,w,h);
@@ -349,37 +516,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       }catch(_){}
     }
 
-    /* 工具函数 */
-    function sceneScale(){const b=new THREE.Box3().setFromObject(root);const s=b.getSize(new THREE.Vector3());return Math.max(s.x,s.y,s.z)||1;}
-    function makeMarker(color){const s=sceneScale()*0.012;const g=new THREE.SphereGeometry(s,16,16);
-      const m=new THREE.MeshBasicMaterial({color});const o=new THREE.Mesh(g,m);
-      const edge=new THREE.Mesh(new THREE.SphereGeometry(s*1.35,16,16), new THREE.MeshBasicMaterial({color:0xffffff,opacity:.85,transparent:true}));
-      const grp=new THREE.Group(); grp.add(edge); grp.add(o); return grp;}
-    function makeMeasureLine(a,b){const geo=new THREE.BufferGeometry().setFromPoints([a,b]);
-      const mat=new THREE.LineBasicMaterial({color:0x00e0ff,linewidth:2,transparent:true,opacity:.95}); return new THREE.Line(geo,mat);}
-    function updateMeasureLine(){if(measureLine&&measureA&&measureB){const p=measureLine.geometry.attributes.position.array;
-      p[0]=measureA.x;p[1]=measureA.y;p[2]=measureA.z;p[3]=measureB.x;p[4]=measureB.y;p[5]=measureB.z;
-      measureLine.geometry.attributes.position.needsUpdate=true;measureLine.geometry.computeBoundingSphere?.();}}
-
-    function fitObject(obj){const b=new THREE.Box3().setFromObject(obj);const s=b.getSize(new THREE.Vector3());
-      const c=b.getCenter(new THREE.Vector3());const md=Math.max(s.x,s.y,s.z)||1;const dist=md/(2*Math.tan(Math.PI*camera.fov/360));
-      const dir = new THREE.Vector3(-1, 1, 0.5).normalize(); // 调整数值以改变角度
-      camera.position.copy(c.clone().add(dir.multiplyScalar(dist*2)));
-      camera.up.set(0, 0, 1); // 如果要 Z 朝下
-      controls.target.copy(c);controls.update();camera.near=Math.max(0.01,dist/1000);camera.far=dist*10000;camera.updateProjectionMatrix();}
-
-    function clearMeasure(){measureA=measureB=null;
-      if(measureLine){root.remove(measureLine);measureLine.geometry.dispose();measureLine.material.dispose();measureLine=null;}
-      if(measureAMarker){root.remove(measureAMarker);measureAMarker=null;}
-      if(measureBMarker){root.remove(measureBMarker);measureBMarker=null;}}
-    function clearPick(){if(pickMarker){root.remove(pickMarker);pickMarker=null;}}
-    function clearScene(){if(currentObj){root.remove(currentObj);currentObj.geometry?.dispose?.();currentObj.material?.dispose?.();currentObj=null;}
-      clearMeasure();clearPick();hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';}
-
-    /* 渲染对象（默认曲面） */
-    function makePoints(geo){const hasColor=!!geo.getAttribute('color');const mat=new THREE.PointsMaterial({size:parseFloat(pointSize.value),vertexColors:hasColor});return new THREE.Points(geo,mat);}
-    function makeMesh(geo){if(geo.index) geo=geo.toNonIndexed(); geo.computeVertexNormals?.();const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});return new THREE.Mesh(geo,mat);}
-
     async function loadPLY(url){
       statusEl.textContent='加载中...';
       progressWrap.style.display='block';
@@ -394,10 +530,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         currentObj = asPoints? makePoints(geo): makeMesh(geo);
         root.add(currentObj);
 
-        // —— 加载完成后按当前倍率应用 Z 放大 ——
         applyZScale(currentZ);
-
         fitObject(currentObj);
+
         statusEl.textContent='加载完成';
         progressFill.style.width='100%';
         progressText.textContent='100%';
@@ -422,60 +557,112 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       });
     }
 
-    pointSize.addEventListener('input',()=>{ if(currentObj&&currentObj.material&&currentObj.material.size!==undefined){currentObj.material.size=parseFloat(pointSize.value);} });
+    pointSize.addEventListener('input',()=>{
+      if(currentObj&&currentObj.material&&currentObj.material.size!==undefined){
+        currentObj.material.size=parseFloat(pointSize.value);
+      }
+    });
 
     function toggle(btn){btn.setAttribute('aria-pressed', btn.getAttribute('aria-pressed')==='true'?'false':'true');}
     function isOn(btn){return btn.getAttribute('aria-pressed')==='true';}
-    modeBtn.addEventListener('click',()=>{ asPoints=!asPoints; modeBtn.textContent=asPoints?'点云':'曲面';
-      if(currentObj&&currentScene?.plyUrl) loadPLY(currentScene.plyUrl);});
-    pickBtn.addEventListener('click',()=>{ toggle(pickBtn); if(isOn(pickBtn)) pickBtn.textContent='拾取✓'; else pickBtn.textContent='拾取';
-      if(isOn(pickBtn)) {measureBtn.setAttribute('aria-pressed','false'); measureBtn.textContent='测距';}});
-    measureBtn.addEventListener('click',()=>{ toggle(measureBtn); if(isOn(measureBtn)) measureBtn.textContent='测距✓'; else measureBtn.textContent='测距';
-      if(isOn(measureBtn)) {pickBtn.setAttribute('aria-pressed','false'); pickBtn.textContent='拾取';}});
-    clearBtn.addEventListener('click',()=>{ clearMeasure(); clearPick(); hud.textContent='已清除测距/拾取结果'; });
 
-    // 绑定“深度放大”滑条（沿 Z 轴 1~10x）
+    modeBtn.addEventListener('click',()=>{
+      asPoints=!asPoints;
+      modeBtn.textContent=asPoints?'点云':'曲面';
+      if(currentObj&&currentScene?.plyUrl) loadPLY(currentScene.plyUrl);
+    });
+
+    pickBtn.addEventListener('click',()=>{
+      toggle(pickBtn);
+      pickBtn.textContent = isOn(pickBtn) ? '拾取✓' : '拾取';
+      if(isOn(pickBtn)) {measureBtn.setAttribute('aria-pressed','false'); measureBtn.textContent='测距';}
+    });
+
+    measureBtn.addEventListener('click',()=>{
+      toggle(measureBtn);
+      measureBtn.textContent = isOn(measureBtn) ? '测距✓' : '测距';
+      if(isOn(measureBtn)) {pickBtn.setAttribute('aria-pressed','false'); pickBtn.textContent='拾取';}
+    });
+
+    clearBtn.addEventListener('click',()=>{
+      clearMeasure(); clearPick();
+      hud.textContent='已清除测距/拾取结果';
+    });
+
     zScaleEl.addEventListener('input', ()=>{
       const v = parseFloat(zScaleEl.value) || 1;
       applyZScale(v);
       zScaleLabel.textContent = '×' + v.toFixed(1);
     });
-    // 初始应用一次
     applyZScale(parseFloat(zScaleEl.value) || 1);
 
-    /* 主画布点击：拾取/测距（带标记+线段） */
+    /* 主画布点击：拾取/测距 */
     renderer.domElement.addEventListener('pointerdown',(e)=>{
-      // ✅ 只允许左键触发拾取/测距：避免中键旋转误触
+      // 只允许左键触发拾取/测距
       if (e.pointerType === 'mouse' && e.button !== 0) return;
 
-      if(!currentObj) return; if(!isOn(pickBtn)&&!isOn(measureBtn)) return;
-      const r=renderer.domElement.getBoundingClientRect(); const mouse=new THREE.Vector2(
-        ((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1 );
-      const rc=new THREE.Raycaster(); rc.setFromCamera(mouse,camera);
-      const h=rc.intersectObject(currentObj,true); if(!h.length) return; const p=h[0].point.clone();
+      if(!currentObj) return;
+      if(!isOn(pickBtn)&&!isOn(measureBtn)) return;
 
-      if(isOn(pickBtn)){ clearPick(); pickMarker=makeMarker(0x9a4dff); pickMarker.position.copy(p); root.add(pickMarker);
-        hud.textContent=`拾取\nX:${p.x.toFixed(3)}\nY:${p.y.toFixed(3)}\nZ:${p.z.toFixed(3)}`; }
+      const r=renderer.domElement.getBoundingClientRect();
+      const mouse=new THREE.Vector2(
+        ((e.clientX-r.left)/r.width)*2-1,
+        -((e.clientY-r.top)/r.height)*2+1
+      );
+
+      const rc=new THREE.Raycaster();
+      rc.setFromCamera(mouse,camera);
+      rc.params.Points.threshold = sceneScale() * 0.01;
+
+      const h=rc.intersectObject(currentObj,true);
+      if(!h.length) return;
+      const p=h[0].point.clone();
+
+      if(isOn(pickBtn)){
+        clearPick();
+        pickMarker=makeMarker(0x9a4dff);
+        pickMarker.position.copy(p);
+        root.add(pickMarker);
+        hud.textContent=`拾取\nX:${p.x.toFixed(3)}\nY:${p.y.toFixed(3)}\nZ:${p.z.toFixed(3)}`;
+      }
+
       if(isOn(measureBtn)){
-        if(!measureA){ measureA=p.clone(); if(measureAMarker) root.remove(measureAMarker);
-          measureAMarker=makeMarker(0x00e0ff); measureAMarker.position.copy(measureA); root.add(measureAMarker);
-          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`; }
-        else if(!measureB){ measureB=p.clone(); if(measureBMarker) root.remove(measureBMarker);
-          measureBMarker=makeMarker(0xff6a00); measureBMarker.position.copy(measureB); root.add(measureBMarker);
-          if(!measureLine){ measureLine=makeMeasureLine(measureA,measureB); root.add(measureLine);} else updateMeasureLine();
-          const dx=measureB.x-measureA.x, dy=measureB.y-measureA.y, dz=measureB.z-measureA.z; const D=Math.sqrt(dx*dx+dy*dy+dz*dz);
-          hud.textContent=`ΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${D.toFixed(3)}`; }
-        else{ clearMeasure(); measureA=p.clone();
-          measureAMarker=makeMarker(0x00e0ff); measureAMarker.position.copy(measureA); root.add(measureAMarker);
-          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`; }
+        if(!measureA){
+          measureA=p.clone();
+          if(measureAMarker) root.remove(measureAMarker);
+          measureAMarker=makeMarker(0x00e0ff);
+          measureAMarker.position.copy(measureA);
+          root.add(measureAMarker);
+          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`;
+        } else if(!measureB){
+          measureB=p.clone();
+          if(measureBMarker) root.remove(measureBMarker);
+          measureBMarker=makeMarker(0xff6a00);
+          measureBMarker.position.copy(measureB);
+          root.add(measureBMarker);
+
+          if(!measureLine){ measureLine=makeMeasureLine(measureA,measureB); root.add(measureLine); }
+          else updateMeasureLine();
+
+          const dx=measureB.x-measureA.x, dy=measureB.y-measureA.y, dz=measureB.z-measureA.z;
+          const D=Math.sqrt(dx*dx+dy*dy+dz*dz);
+          hud.textContent=`ΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${D.toFixed(3)}`;
+        } else {
+          clearMeasure();
+          measureA=p.clone();
+          measureAMarker=makeMarker(0x00e0ff);
+          measureAMarker.position.copy(measureA);
+          root.add(measureAMarker);
+          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`;
+        }
       }
     });
 
     /* 下拉数据 */
     let bridges=[], scenes=[], currentScene=null;
-    function getParam(name){
-      return new URLSearchParams(location.search).get(name);
-    }
+
+    function getParam(name){ return new URLSearchParams(location.search).get(name); }
+
     async function loadIndex(){
       const res = await fetch('./index.json?_=' + Date.now());
       const data = await res.json();
@@ -493,41 +680,83 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         if (currentScene) {
           bridgeSel.value = currentScene.bridgeId;
           const sameBridgeScenes = scenes.filter(s => s.bridgeId === currentScene.bridgeId);
-          dateSel.innerHTML = sameBridgeScenes
-            .map(s => `<option value="${s.id}">${s.date}</option>`)
-            .join('');
+          dateSel.innerHTML = sameBridgeScenes.map(s => `<option value="${s.id}">${s.date}</option>`).join('');
           dateSel.value = currentScene.id;
           loadPLY(currentScene.plyUrl);
           return;
-       }
-     }
+        }
+      }
 
-     // 原默认逻辑
-     fillDates();
-     const id = dateSel.value;
-     currentScene = scenes.find(x => x.id === id);
-     if (currentScene) loadPLY(currentScene.plyUrl);
-   }
-    function fillDates(){const bid=document.getElementById('bridgeSel').value; const arr=scenes.filter(s=>s.bridgeId===bid);
-      document.getElementById('dateSel').innerHTML=arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');}
-    document.getElementById('bridgeSel').addEventListener('change',()=>{fillDates(); const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id);});
-    document.getElementById('dateSel').addEventListener('change',()=>{const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id);});
-    document.getElementById('loadBtn').addEventListener('click',()=>{const id=document.getElementById('dateSel').value; currentScene=scenes.find(x=>x.id===id); if(currentScene) loadPLY(currentScene.plyUrl);});
+      fillDates();
+      const id = dateSel.value;
+      currentScene = scenes.find(x => x.id === id);
+      if (currentScene) loadPLY(currentScene.plyUrl);
+    }
 
-    /* 视图对正 */
-    function getCenter(){ if(root.children.length===0) return new THREE.Vector3(); return new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());}
+    function fillDates(){
+      const bid=document.getElementById('bridgeSel').value;
+      const arr=scenes.filter(s=>s.bridgeId===bid);
+      document.getElementById('dateSel').innerHTML=arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');
+    }
+
+    document.getElementById('bridgeSel').addEventListener('change',()=>{
+      fillDates();
+      const id=document.getElementById('dateSel').value;
+      currentScene=scenes.find(x=>x.id===id);
+    });
+
+    document.getElementById('dateSel').addEventListener('change',()=>{
+      const id=document.getElementById('dateSel').value;
+      currentScene=scenes.find(x=>x.id===id);
+    });
+
+    document.getElementById('loadBtn').addEventListener('click',()=>{
+      const id=document.getElementById('dateSel').value;
+      currentScene=scenes.find(x=>x.id===id);
+      if(currentScene) loadPLY(currentScene.plyUrl);
+    });
+
+    /* 视图对正（保留） */
+    function getCenter(){
+      if(root.children.length===0) return new THREE.Vector3();
+      return new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
+    }
+
     function distTo(c){ return camera.position.clone().sub(c).length(); }
-    function snapToAxis(a){ const c=getCenter(); const dist=Math.max(1,distTo(c)); let pos=new THREE.Vector3(); let up=new THREE.Vector3(0,0,1);
-      if(a==='X'){pos.set(dist,0,0); up.set(0,0,1);} if(a==='Y'){pos.set(0,dist,0); up.set(0,0,1);} if(a==='Z'){pos.set(0,0,dist); up.set(0,1,0);}
-      camera.up.copy(up); camera.position.copy(c.clone().add(pos)); controls.target.copy(c); controls.update(); }
+
+    function snapToAxis(a){
+      const c=getCenter();
+      orbitTarget.copy(c);
+
+      const dist=Math.max(1,distTo(c));
+      let pos=new THREE.Vector3();
+      let up=new THREE.Vector3(0,0,1);
+
+      if(a==='X'){pos.set(dist,0,0); up.set(0,0,1);}
+      if(a==='Y'){pos.set(0,dist,0); up.set(0,0,1);}
+      if(a==='Z'){pos.set(0,0,dist); up.set(0,1,0);} // 避免 lookAt 奇异
+
+      camera.up.copy(up);
+      camera.position.copy(c.clone().add(pos));
+      lookAtTarget();
+    }
 
     /* 自适应 */
-    window.addEventListener('resize',()=>{ camera.aspect=window.innerWidth/(window.innerHeight-128); camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight-128); axisRenderer.setSize(160,160); });
+    window.addEventListener('resize',()=>{
+      camera.aspect=window.innerWidth/(window.innerHeight-128);
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight-128);
+      axisRenderer.setSize(160,160);
+    });
 
     /* 渲染循环 */
-    (function ani(){ requestAnimationFrame(ani); controls.update(); renderer.render(scene,camera);
-      mini.quaternion.copy(camera.quaternion); axisCamera.lookAt(0,0,0); axisRenderer.render(axisScene,axisCamera); })();
+    (function ani(){
+      requestAnimationFrame(ani);
+      renderer.render(scene,camera);
+      mini.quaternion.copy(camera.quaternion);
+      axisCamera.lookAt(0,0,0);
+      axisRenderer.render(axisScene,axisCamera);
+    })();
 
     loadIndex();
   </script>
