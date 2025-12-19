@@ -177,9 +177,35 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     document.getElementById('container').appendChild(renderer.domElement);
     renderer.domElement.tabIndex = 0;
 
+    // 右键平移时不弹出系统菜单
+    renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
+
+    // —— OrbitControls：SolidWorks 风格（中键旋转，滚轮缩放，中心为中键按下点）——
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
-    controls.rotateSpeed = -1; // ← 反转旋转方向
+    controls.dampingFactor = 0.08;
+
+    // 旋转速度：降低一点更“稳”；方向保持你原来的反转
+    controls.rotateSpeed = -0.7;
+
+    // 滚轮缩放速度
+    controls.zoomSpeed = 0.9;
+
+    // 左键留给拾取/测距，不再操控视角
+    controls.mouseButtons.LEFT = -1;
+
+    // 中键按住拖动：旋转
+    controls.mouseButtons.MIDDLE = THREE.MOUSE.ROTATE;
+
+    // 右键：平移（不需要可禁用）
+    controls.mouseButtons.RIGHT = THREE.MOUSE.PAN;
+
+    // 缩放朝鼠标（若 OrbitControls 版本不支持，会自动跳过）
+    if ('zoomToCursor' in controls) controls.zoomToCursor = true;
+
+    // 如果你不想右键平移：打开下面两行
+    // controls.enablePan = false;
+    // controls.mouseButtons.RIGHT = -1;
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
@@ -224,6 +250,59 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const loader=new PLYLoader(); let currentObj=null, asPoints=false;
     let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
     let pickMarker=null; const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
+
+    // —— SolidWorks：中键按下瞬间设置旋转中心（以鼠标所在位置为中心）——
+    {
+      const _pivot = new THREE.Vector3();
+      const _camDir = new THREE.Vector3();
+      const _v = new THREE.Vector3();
+      const _perp = new THREE.Vector3();
+      const _plane = new THREE.Plane();
+
+      renderer.domElement.addEventListener('pointerdown', (e) => {
+        // 只处理鼠标中键（滚轮按下）
+        if (e.pointerType !== 'mouse' || e.button !== 1) return;
+        if (!camera || !controls) return;
+
+        const r = renderer.domElement.getBoundingClientRect();
+        mouse.set(
+          ((e.clientX - r.left) / r.width) * 2 - 1,
+          -((e.clientY - r.top) / r.height) * 2 + 1
+        );
+
+        rc.setFromCamera(mouse, camera);
+
+        // 点云拾取阈值：按场景尺度自适应
+        rc.params.Points.threshold = sceneScale() * 0.01;
+
+        // 1) 优先射线命中模型表面/点云
+        let hitPoint = null;
+        if (currentObj) {
+          const hits = rc.intersectObject(currentObj, true);
+          if (hits.length) hitPoint = hits[0].point;
+        }
+
+        // 2) 没命中：落到经过当前 controls.target 的“视平面”
+        if (hitPoint) {
+          _pivot.copy(hitPoint);
+        } else {
+          camera.getWorldDirection(_camDir);
+          _plane.setFromNormalAndCoplanarPoint(_camDir, controls.target);
+          const p = rc.ray.intersectPlane(_plane, _pivot);
+          if (!p) _pivot.copy(controls.target);
+        }
+
+        // 3) 避免“按下中键瞬间画面跳动”：
+        //    通过横向平移相机，使得设置新 target 后视线方向尽量不变
+        camera.getWorldDirection(_camDir);
+        _v.subVectors(_pivot, camera.position);                   // cam -> pivot
+        _perp.copy(_v).addScaledVector(_camDir, -_v.dot(_camDir));// 去掉平行分量得到垂直分量
+        camera.position.add(_perp);                               // 横移相机
+
+        controls.target.copy(_pivot);
+        controls.update();
+      }, true); // capture：先于 OrbitControls 的 pointerdown 执行
+    }
 
     // —— 当前 Z 倍率 & 应用函数（如为 Y 轴为竖直，请改 set(1,v,1)）——
     let currentZ = 1;
@@ -366,6 +445,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     /* 主画布点击：拾取/测距（带标记+线段） */
     renderer.domElement.addEventListener('pointerdown',(e)=>{
+      // ✅ 只允许左键触发拾取/测距：避免中键旋转误触
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+
       if(!currentObj) return; if(!isOn(pickBtn)&&!isOn(measureBtn)) return;
       const r=renderer.domElement.getBoundingClientRect(); const mouse=new THREE.Vector2(
         ((e.clientX-r.left)/r.width)*2-1, -((e.clientY-r.top)/r.height)*2+1 );
