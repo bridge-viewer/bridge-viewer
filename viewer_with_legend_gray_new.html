@@ -271,7 +271,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     // 旋转中心（鼠标中键按下时取）
     const rotatePivot = new THREE.Vector3();
 
-    // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch（而不是每帧叠加），这样你画圈回到起点就会回到原姿态
+    // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch（而不是每帧叠加）
     const ROTATE_SPEED = 1.0;
     const WORLD_UP = new THREE.Vector3(0,0,1);
 
@@ -296,19 +296,16 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const dx = clientX - rotStartX;
       const dy = clientY - rotStartY;
 
-      // ✅ 修正“方向反了”：把符号翻回来（拖动方向跟你之前的版本一致）
-      const yaw   = ( dx / w) * Math.PI * 2 * ROTATE_SPEED;
-      const pitch = ( dy / h) * Math.PI * 2 * ROTATE_SPEED;
+      // ✅ 只改这里：乘 -1，反转方向
+      const yaw   = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
+      const pitch = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
 
-      // yaw 绕世界Z轴；pitch 绕“yaw之后的相机右轴”
       qYaw.setFromAxisAngle(WORLD_UP, yaw);
       tmpRight.copy(right0).applyQuaternion(qYaw).normalize();
       qPitch.setFromAxisAngle(tmpRight, pitch);
 
       qRot.copy(qYaw).multiply(qPitch);
 
-      // ✅ 关键：旋转时同时旋转相机位置和相机姿态（绕 pivot 同一个 qRot）
-      // 这样 pivot 不会被强制移到屏幕中心（按下中键瞬间也不会跳）
       offset.copy(camPos0).sub(rotatePivot).applyQuaternion(qRot);
       camera.position.copy(rotatePivot).add(offset);
 
@@ -318,8 +315,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     }
 
     function applyPan(dx, dy){
-      const el = renderer.domElement;
-      const hh = el.clientHeight || 1;
+      const hh = (renderer.domElement.clientHeight || 1);
 
       const dist = Math.max(0.0001, camera.position.distanceTo(orbitTarget));
       const vFov = THREE.MathUtils.degToRad(camera.fov);
@@ -349,20 +345,14 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
         isRotating = true; isPanning = false;
 
-        // 记录按下瞬间（用于“总位移”）
         rotStartX = e.clientX; rotStartY = e.clientY;
 
-        // 旋转中心：取鼠标所在点（但不改变当前视图 → 不会跳）
         rotatePivot.copy(pickPointFromEvent(e));
-
-        // 更新参考点（不改变画面，只影响之后缩放/平移手感）
         orbitTarget.copy(rotatePivot);
 
-        // 记录按下瞬间的相机姿态作为基准（之后每帧都从这里算，不会“画圈不回位”）
         camPos0.copy(camera.position);
         camQuat0.copy(camera.quaternion);
         right0.set(1,0,0).applyQuaternion(camQuat0).normalize();
-
         return;
       }
 
@@ -447,7 +437,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     }, { passive:false });
 
     /* ========= 业务逻辑（原有） ========= */
-
     function makeMarker(color){
       const s=sceneScale()*0.012;
       const g=new THREE.SphereGeometry(s,16,16);
@@ -534,7 +523,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     let currentZ = 1;
     function applyZScale(v){
       currentZ = v;
-      if(currentObj){ currentObj.scale.set(1, 1, v); } // 若竖直为 Y：改为 (1, v, 1)
+      if(currentObj){ currentObj.scale.set(1, 1, v); }
     }
 
     /* 图例 */
