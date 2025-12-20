@@ -108,6 +108,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     </div>
     <div id="g2" class="row">
       <div class="group" style="grid-column:span 12;flex-wrap:wrap">
+        <!-- ✅ 新增：仅显示河床 -->
+        <button id="bedOnlyBtn" class="toggle" aria-pressed="false">仅显示河床</button>
+
         <button id="modeBtn" class="toggle" aria-pressed="false">曲面</button>
         <label>点大小</label><input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5" style="width:160px">
         <button id="pickBtn" class="toggle" aria-pressed="false">拾取</button>
@@ -192,6 +195,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const measureBtn=document.getElementById('measureBtn');
     const clearBtn=document.getElementById('clearBtn');
 
+    const bedOnlyBtn=document.getElementById('bedOnlyBtn'); // ✅ 新增
+
     const zScaleEl = document.getElementById('zScale');
     const zScaleLabel = document.getElementById('zScaleLabel');
 
@@ -263,6 +268,41 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return ok ? p : orbitTarget.clone();
     }
 
+    /* ========= ✅ 新增：河床显示切换（cloud.ply / cloud2.ply） ========= */
+    let bedOnly = false; // 默认未开启
+
+    function cloud2UrlFrom(plyUrl){
+      // 无论 plyUrl 是相对/绝对，都尽量稳地取“同文件夹下 cloud2.ply”
+      try{
+        const u = new URL(plyUrl, location.href);
+        const path = u.pathname;
+        const i = path.lastIndexOf('/');
+        u.pathname = (i >= 0 ? path.slice(0, i+1) : '/') + 'cloud2.ply';
+        return u.href;
+      }catch(_){
+        const i = String(plyUrl).lastIndexOf('/');
+        return (i >= 0 ? String(plyUrl).slice(0, i+1) : '') + 'cloud2.ply';
+      }
+    }
+
+    function getActivePlyUrl(){
+      if(!currentScene?.plyUrl) return null;
+      return bedOnly ? cloud2UrlFrom(currentScene.plyUrl) : currentScene.plyUrl;
+    }
+
+    function syncBedOnlyBtn(){
+      bedOnlyBtn.setAttribute('aria-pressed', bedOnly ? 'true' : 'false');
+      bedOnlyBtn.textContent = bedOnly ? '显示河床+桥梁' : '仅显示河床';
+    }
+    syncBedOnlyBtn();
+
+    bedOnlyBtn.addEventListener('click', ()=>{
+      bedOnly = !bedOnly;
+      syncBedOnlyBtn();
+      const url = getActivePlyUrl();
+      if(url) loadPLY(url);
+    });
+
     /* ========= SolidWorks 风格相机交互（不使用 OrbitControls） ========= */
 
     let isRotating=false, isPanning=false;
@@ -271,7 +311,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     // 旋转中心（鼠标中键按下时取）
     const rotatePivot = new THREE.Vector3();
 
-    // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch（而不是每帧叠加）
+    // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch
     const ROTATE_SPEED = 1.0;
     const WORLD_UP = new THREE.Vector3(0,0,1);
 
@@ -296,7 +336,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const dx = clientX - rotStartX;
       const dy = clientY - rotStartY;
 
-      // ✅ 只改这里：乘 -1，反转方向
+      // ✅ 保持你当前已经正确的方向（上一版我们已改成 -dx/-dy）
       const yaw   = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
       const pitch = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
 
@@ -437,6 +477,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     }, { passive:false });
 
     /* ========= 业务逻辑（原有） ========= */
+
     function makeMarker(color){
       const s=sceneScale()*0.012;
       const g=new THREE.SphereGeometry(s,16,16);
@@ -621,7 +662,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     modeBtn.addEventListener('click',()=>{
       asPoints=!asPoints;
       modeBtn.textContent=asPoints?'点云':'曲面';
-      if(currentObj&&currentScene?.plyUrl) loadPLY(currentScene.plyUrl);
+      const url = getActivePlyUrl();
+      if(currentObj && url) loadPLY(url);
     });
 
     pickBtn.addEventListener('click',()=>{
@@ -733,7 +775,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
           const sameBridgeScenes = scenes.filter(s => s.bridgeId === currentScene.bridgeId);
           dateSel.innerHTML = sameBridgeScenes.map(s => `<option value="${s.id}">${s.date}</option>`).join('');
           dateSel.value = currentScene.id;
-          loadPLY(currentScene.plyUrl);
+
+          const url = getActivePlyUrl();
+          if (url) loadPLY(url);
           return;
         }
       }
@@ -741,7 +785,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       fillDates();
       const id = dateSel.value;
       currentScene = scenes.find(x => x.id === id);
-      if (currentScene) loadPLY(currentScene.plyUrl);
+      const url = getActivePlyUrl();
+      if (url) loadPLY(url);
     }
 
     function fillDates(){
@@ -764,7 +809,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     document.getElementById('loadBtn').addEventListener('click',()=>{
       const id=document.getElementById('dateSel').value;
       currentScene=scenes.find(x=>x.id===id);
-      if(currentScene) loadPLY(currentScene.plyUrl);
+      const url = getActivePlyUrl();
+      if(url) loadPLY(url);
     });
 
     /* 自适应 */
