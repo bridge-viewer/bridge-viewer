@@ -206,7 +206,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
 
-    // 视图参考点
+    // 视图参考点（用于缩放平面/平移尺度）
     const orbitTarget = new THREE.Vector3(0,0,0);
 
     function lookAtTarget(){
@@ -221,7 +221,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return Math.max(s.x,s.y,s.z)||1;
     }
 
-    // 重拾取（用于：中键按下时确定旋转中心；次数很少，允许稍重）
+    // 重拾取（用于：中键按下时确定旋转中心；次数很少）
     function pickPointFromEvent(e){
       const r = renderer.domElement.getBoundingClientRect();
       mouse.set(
@@ -245,7 +245,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return ok ? p : orbitTarget.clone();
     }
 
-    // 轻拾取（用于：滚轮缩放；每一帧最多算一次，不做模型相交，避免“卡卡的”）
+    // 轻拾取（用于：滚轮缩放；每帧最多一次，不做模型相交）
     function pickPointOnTargetPlane(clientX, clientY){
       const r = renderer.domElement.getBoundingClientRect();
       mouse.set(
@@ -267,71 +267,63 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     let isRotating=false, isPanning=false;
     let activePointerId=null;
-    let lastX=0, lastY=0;
+
+    // 旋转中心（鼠标中键按下时取）
     const rotatePivot = new THREE.Vector3();
 
+    // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch（而不是每帧叠加），这样你画圈回到起点就会回到原姿态
     const ROTATE_SPEED = 1.0;
-    const ZOOM_SPEED = 0.0016;
-
-    // ✅ 关键改动：用“绕世界Z轴的Yaw + 俯仰Pitch”的轨道相机方式
-    // 这样你画圈(回到起点)时，Yaw/Pitch 的总增量会回到0，视角会严格回到起点（不会出现“转不满360°”）
     const WORLD_UP = new THREE.Vector3(0,0,1);
-    const tmpOff = new THREE.Vector3();
-    let orbitRadius = 1;
-    let orbitYaw = 0;    // 绕 Z
-    let orbitPitch = 0;  // 抬头/低头
 
-    const PITCH_EPS = 1e-3; // 避免正好到 ±90° 的奇异点
+    let rotStartX=0, rotStartY=0;
+    const camPos0 = new THREE.Vector3();
+    const camQuat0 = new THREE.Quaternion();
+    const right0 = new THREE.Vector3();
+    const tmpRight = new THREE.Vector3();
+    const qYaw = new THREE.Quaternion();
+    const qPitch = new THREE.Quaternion();
+    const qRot = new THREE.Quaternion();
+    const offset = new THREE.Vector3();
 
-    function syncOrbitFromCamera(){
-      tmpOff.copy(camera.position).sub(rotatePivot);
-      orbitRadius = Math.max(1e-6, tmpOff.length());
+    // 平移（右键）
+    let lastX=0, lastY=0;
 
-      const xy = Math.hypot(tmpOff.x, tmpOff.y);
-      orbitPitch = Math.atan2(tmpOff.z, xy);        // [-pi/2, pi/2]
-      orbitYaw   = Math.atan2(tmpOff.x, tmpOff.y);  // 以 +Y 为 0 度，绕 Z
-    }
-
-    function applyOrbitToCamera(){
-      const cp = Math.cos(orbitPitch);
-      const sp = Math.sin(orbitPitch);
-      const sy = Math.sin(orbitYaw);
-      const cy = Math.cos(orbitYaw);
-
-      const x = orbitRadius * sy * cp;
-      const y = orbitRadius * cy * cp;
-      const z = orbitRadius * sp;
-
-      camera.position.set(rotatePivot.x + x, rotatePivot.y + y, rotatePivot.z + z);
-      camera.up.copy(WORLD_UP);
-      camera.lookAt(rotatePivot);
-      camera.updateMatrixWorld();
-    }
-
-    function applyOrbitDelta(dx, dy){
+    function applyRotationFromStart(clientX, clientY){
       const el = renderer.domElement;
       const w = el.clientWidth || 1;
       const h = el.clientHeight || 1;
 
-      const dYaw   = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
-      const dPitch = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
+      const dx = clientX - rotStartX;
+      const dy = clientY - rotStartY;
 
-      orbitYaw   += dYaw;
-      orbitPitch += dPitch;
+      // ✅ 修正“方向反了”：把符号翻回来（拖动方向跟你之前的版本一致）
+      const yaw   = ( dx / w) * Math.PI * 2 * ROTATE_SPEED;
+      const pitch = ( dy / h) * Math.PI * 2 * ROTATE_SPEED;
 
-      const maxPitch = Math.PI/2 - PITCH_EPS;
-      orbitPitch = Math.max(-maxPitch, Math.min(maxPitch, orbitPitch));
+      // yaw 绕世界Z轴；pitch 绕“yaw之后的相机右轴”
+      qYaw.setFromAxisAngle(WORLD_UP, yaw);
+      tmpRight.copy(right0).applyQuaternion(qYaw).normalize();
+      qPitch.setFromAxisAngle(tmpRight, pitch);
 
-      applyOrbitToCamera();
+      qRot.copy(qYaw).multiply(qPitch);
+
+      // ✅ 关键：旋转时同时旋转相机位置和相机姿态（绕 pivot 同一个 qRot）
+      // 这样 pivot 不会被强制移到屏幕中心（按下中键瞬间也不会跳）
+      offset.copy(camPos0).sub(rotatePivot).applyQuaternion(qRot);
+      camera.position.copy(rotatePivot).add(offset);
+
+      camera.quaternion.copy(qRot).multiply(camQuat0);
+      camera.quaternion.normalize();
+      camera.updateMatrixWorld();
     }
 
     function applyPan(dx, dy){
       const el = renderer.domElement;
-      const h = el.clientHeight || 1;
+      const hh = el.clientHeight || 1;
 
       const dist = Math.max(0.0001, camera.position.distanceTo(orbitTarget));
       const vFov = THREE.MathUtils.degToRad(camera.fov);
-      const worldPerPixel = 2 * dist * Math.tan(vFov/2) / h;
+      const worldPerPixel = 2 * dist * Math.tan(vFov/2) / hh;
 
       const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize();
       const up    = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();
@@ -356,13 +348,21 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         renderer.domElement.setPointerCapture(activePointerId);
 
         isRotating = true; isPanning = false;
-        lastX = e.clientX; lastY = e.clientY;
 
+        // 记录按下瞬间（用于“总位移”）
+        rotStartX = e.clientX; rotStartY = e.clientY;
+
+        // 旋转中心：取鼠标所在点（但不改变当前视图 → 不会跳）
         rotatePivot.copy(pickPointFromEvent(e));
+
+        // 更新参考点（不改变画面，只影响之后缩放/平移手感）
         orbitTarget.copy(rotatePivot);
 
-        // ✅ 以当前相机姿态同步一份 yaw/pitch/radius（保证拖动“可逆”，回到起点就回到原视角）
-        syncOrbitFromCamera();
+        // 记录按下瞬间的相机姿态作为基准（之后每帧都从这里算，不会“画圈不回位”）
+        camPos0.copy(camera.position);
+        camQuat0.copy(camera.quaternion);
+        right0.set(1,0,0).applyQuaternion(camQuat0).normalize();
+
         return;
       }
 
@@ -380,14 +380,19 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     renderer.domElement.addEventListener('pointermove', (e)=>{
       if (activePointerId == null || e.pointerId !== activePointerId) return;
-      if (!isRotating && !isPanning) return;
 
-      const dx = e.clientX - lastX;
-      const dy = e.clientY - lastY;
-      lastX = e.clientX; lastY = e.clientY;
+      if (isRotating){
+        applyRotationFromStart(e.clientX, e.clientY);
+        return;
+      }
 
-      if (isRotating) applyOrbitDelta(dx, dy);
-      else if (isPanning) applyPan(dx, dy);
+      if (isPanning){
+        const dx = e.clientX - lastX;
+        const dy = e.clientY - lastY;
+        lastX = e.clientX; lastY = e.clientY;
+        applyPan(dx, dy);
+        return;
+      }
     }, true);
 
     function endPointer(e){
@@ -400,7 +405,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     renderer.domElement.addEventListener('pointerup', endPointer, true);
     renderer.domElement.addEventListener('pointercancel', endPointer, true);
 
-    /* ✅ 改进缩放：把 wheel 高频事件“合并到每帧一次”，且缩放点只用轻拾取（不做模型相交），避免卡顿 */
+    /* ✅ 缩放：wheel 合并到每帧一次 + 轻拾取（不卡） */
+    const ZOOM_SPEED = 0.0016;
+
     let wheelRAF = 0;
     let wheelDeltaAcc = 0;
     let wheelClientX = 0;
