@@ -152,7 +152,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
     camera.position.set(100,100,100);
-    camera.up.set(0,0,1); // 你的坐标系是 Z 竖直
+    camera.up.set(0,0,1);
 
     const renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setPixelRatio(window.devicePixelRatio);
@@ -160,7 +160,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     document.getElementById('container').appendChild(renderer.domElement);
     renderer.domElement.tabIndex = 0;
 
-    // 右键不弹系统菜单
     renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
@@ -207,7 +206,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
 
-    // 作为“视图参考点/默认平面基准点”（不会强制影响画面）
+    // 视图参考点
     const orbitTarget = new THREE.Vector3(0,0,0);
 
     function lookAtTarget(){
@@ -222,6 +221,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return Math.max(s.x,s.y,s.z)||1;
     }
 
+    // 重拾取（用于：中键按下时确定旋转中心；次数很少，允许稍重）
     function pickPointFromEvent(e){
       const r = renderer.domElement.getBoundingClientRect();
       mouse.set(
@@ -232,13 +232,11 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       rc.setFromCamera(mouse, camera);
       rc.params.Points.threshold = sceneScale() * 0.01;
 
-      // 优先打到模型
       if (currentObj){
         const hits = rc.intersectObject(currentObj, true);
         if (hits.length) return hits[0].point.clone();
       }
 
-      // 没打到：落在经过 orbitTarget 的视平面
       const camDir = new THREE.Vector3();
       camera.getWorldDirection(camDir);
       const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, orbitTarget);
@@ -247,38 +245,49 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return ok ? p : orbitTarget.clone();
     }
 
-    /* ========= SolidWorks 风格相机交互（不使用 OrbitControls，避免“点击跳转”和“极点卡死”） ========= */
+    // 轻拾取（用于：滚轮缩放；每一帧最多算一次，不做模型相交，避免“卡卡的”）
+    function pickPointOnTargetPlane(clientX, clientY){
+      const r = renderer.domElement.getBoundingClientRect();
+      mouse.set(
+        ((clientX - r.left)/r.width)*2 - 1,
+        -((clientY - r.top)/r.height)*2 + 1
+      );
+      rc.setFromCamera(mouse, camera);
 
-    // 旋转（中键按住拖动）
+      const camDir = new THREE.Vector3();
+      camera.getWorldDirection(camDir);
+
+      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, orbitTarget);
+      const p = new THREE.Vector3();
+      const ok = rc.ray.intersectPlane(plane, p);
+      return ok ? p : orbitTarget.clone();
+    }
+
+    /* ========= SolidWorks 风格相机交互（不使用 OrbitControls） ========= */
+
     let isRotating=false, isPanning=false;
     let activePointerId=null;
     let lastX=0, lastY=0;
     const rotatePivot = new THREE.Vector3();
 
-    const ROTATE_SPEED = 1.0; // 越大越快（建议 0.6~1.2）
-    const ZOOM_SPEED = 0.0016; // 越大越敏感（建议 0.0012~0.0022）
+    const ROTATE_SPEED = 1.0;
+    const ZOOM_SPEED = 0.0016;
 
     function applyTrackballRotation(dx, dy){
       const el = renderer.domElement;
       const w = el.clientWidth || 1;
       const h = el.clientHeight || 1;
 
-      // 鼠标移动映射到角度（横向一整屏约 360°）
       const ax = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
       const ay = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
 
-      // 相机局部轴（转到世界）
       const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize();
       const up    = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();
 
       const qYaw   = new THREE.Quaternion().setFromAxisAngle(up, ax);
       const qPitch = new THREE.Quaternion().setFromAxisAngle(right, ay);
-
-      // yaw 再 pitch
       const q = qYaw.multiply(qPitch);
 
-      // 关键：位置绕 pivot 旋转，同时相机姿态也 premultiply 同一个 q
-      // 这样 pivot 在屏幕上的位置不会被强行拉到“视角中心”，也不会在按下中键时跳变
       camera.position.sub(rotatePivot).applyQuaternion(q).add(rotatePivot);
       camera.quaternion.premultiply(q);
       camera.updateMatrixWorld();
@@ -288,7 +297,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const el = renderer.domElement;
       const h = el.clientHeight || 1;
 
-      // 按到参考点的距离决定平移尺度（CAD手感）
       const dist = Math.max(0.0001, camera.position.distanceTo(orbitTarget));
       const vFov = THREE.MathUtils.degToRad(camera.fov);
       const worldPerPixel = 2 * dist * Math.tan(vFov/2) / h;
@@ -302,14 +310,13 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
       camera.position.add(pan);
       orbitTarget.add(pan);
-      rotatePivot.add(pan); // 如果正在旋转，pivot 也一起平移保持一致
+      rotatePivot.add(pan);
       camera.updateMatrixWorld();
     }
 
     renderer.domElement.addEventListener('pointerdown', (e)=>{
       if (e.pointerType !== 'mouse') return;
 
-      // 中键：设置旋转中心，但不改变画面（不跳）
       if (e.button === 1){
         e.preventDefault(); e.stopPropagation();
         activePointerId = e.pointerId;
@@ -319,12 +326,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         lastX = e.clientX; lastY = e.clientY;
 
         rotatePivot.copy(pickPointFromEvent(e));
-        // 只更新“参考点”，不会改变视角，因此不会出现你说的“单击就强制移动中心点”
         orbitTarget.copy(rotatePivot);
         return;
       }
 
-      // 右键：平移（可保留；不需要可删除这一段）
       if (e.button === 2){
         e.preventDefault(); e.stopPropagation();
         activePointerId = e.pointerId;
@@ -344,11 +349,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const dy = e.clientY - lastY;
       lastX = e.clientX; lastY = e.clientY;
 
-      if (isRotating){
-        applyTrackballRotation(dx, dy); // ✅ 不会在“Z轴正向上”卡死
-      } else if (isPanning){
-        applyPan(dx, dy);
-      }
+      if (isRotating) applyTrackballRotation(dx, dy);
+      else if (isPanning) applyPan(dx, dy);
     }, true);
 
     function endPointer(e){
@@ -361,15 +363,27 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     renderer.domElement.addEventListener('pointerup', endPointer, true);
     renderer.domElement.addEventListener('pointercancel', endPointer, true);
 
-    // 滚轮缩放：以鼠标所在位置的3D点作为缩放参考（更像 CAD）
-    renderer.domElement.addEventListener('wheel', (e)=>{
-      e.preventDefault();
+    /* ✅ 改进缩放：把 wheel 高频事件“合并到每帧一次”，且缩放点只用轻拾取（不做模型相交），避免卡顿 */
+    let wheelRAF = 0;
+    let wheelDeltaAcc = 0;
+    let wheelClientX = 0;
+    let wheelClientY = 0;
 
-      const zoomPoint = pickPointFromEvent(e);
-      orbitTarget.copy(zoomPoint); // 更新参考点，不会造成跳变，只影响之后的平移尺度/默认平面
+    function applyWheelZoom(){
+      wheelRAF = 0;
 
-      // deltaY > 0：缩小（远离）；deltaY < 0：放大（靠近）
-      const scale = Math.exp(e.deltaY * ZOOM_SPEED);
+      const delta = wheelDeltaAcc;
+      wheelDeltaAcc = 0;
+
+      // 以“当前 orbitTarget 所在视平面”为缩放参考（不卡）
+      const zoomPoint = pickPointOnTargetPlane(wheelClientX, wheelClientY);
+      orbitTarget.copy(zoomPoint);
+
+      // deltaY > 0：缩小；deltaY < 0：放大
+      let scale = Math.exp(delta * ZOOM_SPEED);
+
+      // 防止触控板/某些鼠标一次 delta 太大导致跳变：限制每帧缩放倍率
+      scale = Math.min(1.25, Math.max(0.80, scale));
 
       const v = camera.position.clone().sub(zoomPoint);
       const curLen = v.length();
@@ -380,6 +394,16 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       v.multiplyScalar(scale);
       camera.position.copy(zoomPoint.clone().add(v));
       camera.updateMatrixWorld();
+    }
+
+    renderer.domElement.addEventListener('wheel', (e)=>{
+      e.preventDefault();
+
+      wheelDeltaAcc += e.deltaY;
+      wheelClientX = e.clientX;
+      wheelClientY = e.clientY;
+
+      if (!wheelRAF) wheelRAF = requestAnimationFrame(applyWheelZoom);
     }, { passive:false });
 
     /* ========= 业务逻辑（原有） ========= */
@@ -427,7 +451,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       camera.far=dist*10000;
       camera.updateProjectionMatrix();
 
-      // 用 lookAt 初始化一次（后续旋转不再依赖 lookAt，避免“极点/卡死”问题）
       camera.up.set(0,0,1);
       lookAtTarget();
     }
@@ -497,7 +520,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const ticks=10, top=legendSpec.max, bot=legendSpec.min;
       for(let i=0;i<ticks;i++){
         const v = top - (i)*( (top-bot)/(ticks-1) );
-        const d=document.createElement('div'); d.textContent = v.toFixed(3); ticksEl.appendChild(d);
+        const dd=document.createElement('div'); dd.textContent = v.toFixed(3); ticksEl.appendChild(dd);
       }
     }
     drawLegendDiscrete();
@@ -598,23 +621,22 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     /* 主画布点击：拾取/测距 */
     renderer.domElement.addEventListener('pointerdown',(e)=>{
-      // 只允许左键触发拾取/测距
       if (e.pointerType === 'mouse' && e.button !== 0) return;
 
       if(!currentObj) return;
       if(!isOn(pickBtn)&&!isOn(measureBtn)) return;
 
       const r=renderer.domElement.getBoundingClientRect();
-      const mouse=new THREE.Vector2(
+      const mm=new THREE.Vector2(
         ((e.clientX-r.left)/r.width)*2-1,
         -((e.clientY-r.top)/r.height)*2+1
       );
 
-      const rc=new THREE.Raycaster();
-      rc.setFromCamera(mouse,camera);
-      rc.params.Points.threshold = sceneScale() * 0.01;
+      const rcc=new THREE.Raycaster();
+      rcc.setFromCamera(mm,camera);
+      rcc.params.Points.threshold = sceneScale() * 0.01;
 
-      const h=rc.intersectObject(currentObj,true);
+      const h=rcc.intersectObject(currentObj,true);
       if(!h.length) return;
       const p=h[0].point.clone();
 
@@ -715,31 +737,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       currentScene=scenes.find(x=>x.id===id);
       if(currentScene) loadPLY(currentScene.plyUrl);
     });
-
-    /* 视图对正（保留） */
-    function getCenter(){
-      if(root.children.length===0) return new THREE.Vector3();
-      return new THREE.Box3().setFromObject(root).getCenter(new THREE.Vector3());
-    }
-
-    function distTo(c){ return camera.position.clone().sub(c).length(); }
-
-    function snapToAxis(a){
-      const c=getCenter();
-      orbitTarget.copy(c);
-
-      const dist=Math.max(1,distTo(c));
-      let pos=new THREE.Vector3();
-      let up=new THREE.Vector3(0,0,1);
-
-      if(a==='X'){pos.set(dist,0,0); up.set(0,0,1);}
-      if(a==='Y'){pos.set(0,dist,0); up.set(0,0,1);}
-      if(a==='Z'){pos.set(0,0,dist); up.set(0,1,0);} // 避免 lookAt 奇异
-
-      camera.up.copy(up);
-      camera.position.copy(c.clone().add(pos));
-      lookAtTarget();
-    }
 
     /* 自适应 */
     window.addEventListener('resize',()=>{
