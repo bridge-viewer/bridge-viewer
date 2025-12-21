@@ -10,10 +10,8 @@
   --panel:#ffffffee; --text:#222; --muted:#667085;
   --primary:#315cf0; --primary-weak:#e7ecff; --border:#d9d9d9; --shadow:0 6px 20px rgba(0,0,0,.08);
   --safe-b: env(safe-area-inset-bottom, 12px);
-  --viewerTop: 128px; /* JS 会自动覆盖为 toolbar 的真实底部位置 */
 }
-*{box-sizing:border-box}
-body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei",sans-serif;color:var(--text);}
+*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei",sans-serif;color:var(--text);}
 
 #topbar{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
 #logo{width:32px;height:32px;border-radius:50%}
@@ -22,13 +20,7 @@ body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,
 #brand img{width:36px;height:36px;border-radius:50%}
 #brand .name{font-weight:700;color:#22314a;font-size:14px}
 
-#toolbar{
-  position:sticky;
-  top:0; /* ✅ 修正：topbar 隐藏时不再留空 */
-  z-index:25;
-  display:grid;grid-template-columns:repeat(12,1fr);gap:8px;
-  padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border)
-}
+#toolbar{position:sticky;top:54px;z-index:25;display:grid;grid-template-columns:repeat(12,1fr);gap:8px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
 .row{display:contents}
 .group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
 .group label{font-size:13px;color:var(--muted)}
@@ -40,8 +32,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 #g1{grid-column:span 12} #g2{grid-column:span 12}
 @media (min-width:860px){ #g1{grid-column:span 7} #g2{grid-column:span 5} }
 
-/* ✅ 视口由 JS 根据 toolbar 实际高度自动计算 */
-#container{position:fixed;inset:0;top:var(--viewerTop,128px)}
+#container{position:fixed;inset:0;top:128px}
 
 #hud{position:fixed;left:12px;bottom:var(--safe-b);transform:translateY(-6px);background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:24}
 #wm{position:fixed;left:12px;bottom:calc(var(--safe-b) + 64px);opacity:.10;z-index:10;pointer-events:none}
@@ -117,7 +108,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     </div>
     <div id="g2" class="row">
       <div class="group" style="grid-column:span 12;flex-wrap:wrap">
-        <!-- ✅ 仅显示河床 -->
+        <!-- ✅ 新增：仅显示河床 -->
         <button id="bedOnlyBtn" class="toggle" aria-pressed="false">仅显示河床</button>
 
         <button id="modeBtn" class="toggle" aria-pressed="false">曲面</button>
@@ -158,43 +149,21 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     import * as THREE from 'three';
     import { PLYLoader } from './PLYLoader.js';
 
-    const toolbarEl = document.getElementById('toolbar');
-    const containerEl = document.getElementById('container');
-
     /* 场景 */
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
 
-    // ✅ 不再用固定 window.innerHeight-128：创建时先给 1，后面用容器真实尺寸更新
-    const camera = new THREE.PerspectiveCamera(60, 1, 0.1, 100000);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
     camera.position.set(100,100,100);
     camera.up.set(0,0,1);
 
     const renderer = new THREE.WebGLRenderer({antialias:true});
     renderer.setPixelRatio(window.devicePixelRatio);
-    containerEl.appendChild(renderer.domElement);
+    renderer.setSize(window.innerWidth, window.innerHeight-128);
+    document.getElementById('container').appendChild(renderer.domElement);
     renderer.domElement.tabIndex = 0;
 
-    // 右键不弹系统菜单
     renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
-
-    // ✅ 根据 toolbar 实际高度设置容器 top，并按容器实际大小设置渲染尺寸
-    function resizeRendererToContainer(){
-      const rect = containerEl.getBoundingClientRect();
-      const w = Math.max(1, Math.floor(rect.width));
-      const h = Math.max(1, Math.floor(rect.height));
-      renderer.setPixelRatio(window.devicePixelRatio);
-      renderer.setSize(w, h, false);
-      camera.aspect = w / h;
-      camera.updateProjectionMatrix();
-    }
-    function updateLayout(){
-      const bottom = toolbarEl.getBoundingClientRect().bottom;
-      document.documentElement.style.setProperty('--viewerTop', Math.ceil(bottom) + 'px');
-      requestAnimationFrame(resizeRendererToContainer);
-    }
-    window.addEventListener('resize', updateLayout);
-    updateLayout();
 
     scene.add(new THREE.AmbientLight(0xffffff, 0.6));
     const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
@@ -226,7 +195,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const measureBtn=document.getElementById('measureBtn');
     const clearBtn=document.getElementById('clearBtn');
 
-    const bedOnlyBtn=document.getElementById('bedOnlyBtn');
+    const bedOnlyBtn=document.getElementById('bedOnlyBtn'); // ✅ 新增
 
     const zScaleEl = document.getElementById('zScale');
     const zScaleLabel = document.getElementById('zScaleLabel');
@@ -299,10 +268,11 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return ok ? p : orbitTarget.clone();
     }
 
-    /* ========= 河床显示切换（cloud.ply / cloud2.ply） ========= */
+    /* ========= ✅ 新增：河床显示切换（cloud.ply / cloud2.ply） ========= */
     let bedOnly = false; // 默认未开启
 
     function cloud2UrlFrom(plyUrl){
+      // 无论 plyUrl 是相对/绝对，都尽量稳地取“同文件夹下 cloud2.ply”
       try{
         const u = new URL(plyUrl, location.href);
         const path = u.pathname;
@@ -338,6 +308,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     let isRotating=false, isPanning=false;
     let activePointerId=null;
 
+    // 旋转中心（鼠标中键按下时取）
     const rotatePivot = new THREE.Vector3();
 
     // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch
@@ -354,7 +325,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const qRot = new THREE.Quaternion();
     const offset = new THREE.Vector3();
 
-    let lastX=0, lastY=0; // 平移（右键）
+    // 平移（右键）
+    let lastX=0, lastY=0;
 
     function applyRotationFromStart(clientX, clientY){
       const el = renderer.domElement;
@@ -364,7 +336,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const dx = clientX - rotStartX;
       const dy = clientY - rotStartY;
 
-      // 方向（你当前这版已经是正确手感）
+      // ✅ 保持你当前已经正确的方向（上一版我们已改成 -dx/-dy）
       const yaw   = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
       const pitch = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
 
@@ -463,7 +435,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     renderer.domElement.addEventListener('pointerup', endPointer, true);
     renderer.domElement.addEventListener('pointercancel', endPointer, true);
 
-    /* 缩放：wheel 合并到每帧一次 + 轻拾取（不卡） */
+    /* ✅ 缩放：wheel 合并到每帧一次 + 轻拾取（不卡） */
     const ZOOM_SPEED = 0.0016;
 
     let wheelRAF = 0;
@@ -496,13 +468,15 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     renderer.domElement.addEventListener('wheel', (e)=>{
       e.preventDefault();
+
       wheelDeltaAcc += e.deltaY;
       wheelClientX = e.clientX;
       wheelClientY = e.clientY;
+
       if (!wheelRAF) wheelRAF = requestAnimationFrame(applyWheelZoom);
     }, { passive:false });
 
-    /* ========= 业务逻辑 ========= */
+    /* ========= 业务逻辑（原有） ========= */
 
     function makeMarker(color){
       const s=sceneScale()*0.012;
@@ -532,65 +506,38 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       }
     }
 
-    /* ✅ 改进：更“贴近屏幕”的自适应 Fit（默认更大，不再像第一张图那么小） */
-    const FIT_TARGET_NDC = 0.95; // 越接近 1 越“贴边”（模型越大）
-    const FIT_DIR = new THREE.Vector3(-1, 1, 0.5).normalize();
-
     function fitObject(obj){
-      const box = new THREE.Box3().setFromObject(obj);
-      if(!Number.isFinite(box.min.x)) return;
+      const b=new THREE.Box3().setFromObject(obj);
+      const s=b.getSize(new THREE.Vector3());
+      const c=b.getCenter(new THREE.Vector3());
+      orbitTarget.copy(c);
 
-      const size = box.getSize(new THREE.Vector3());
-      const center = box.getCenter(new THREE.Vector3());
-      orbitTarget.copy(center);
-
-      // 基础距离（不要再乘 2）
+      // ✅ 用“宽/高 + 屏幕比例”来算距离，避免桥很长导致相机过远
       const vFov = THREE.MathUtils.degToRad(camera.fov);
-      let dist = (Math.max(size.x,size.y,size.z)||1) / (2*Math.tan(vFov/2));
+      const hFov = 2 * Math.atan(Math.tan(vFov/2) * camera.aspect);
 
-      // 用 8 个角做投影迭代，让模型“尽可能大且不出屏”
-      const corners = [
-        new THREE.Vector3(box.min.x, box.min.y, box.min.z),
-        new THREE.Vector3(box.min.x, box.min.y, box.max.z),
-        new THREE.Vector3(box.min.x, box.max.y, box.min.z),
-        new THREE.Vector3(box.min.x, box.max.y, box.max.z),
-        new THREE.Vector3(box.max.x, box.min.y, box.min.z),
-        new THREE.Vector3(box.max.x, box.min.y, box.max.z),
-        new THREE.Vector3(box.max.x, box.max.y, box.min.z),
-        new THREE.Vector3(box.max.x, box.max.y, box.max.z),
-      ];
+      // 你的 up 是 Z，所以“高度”用 z；“宽度”用 max(x,y)
+      const height = Math.max(1e-6, s.z);
+      const width  = Math.max(1e-6, Math.max(s.x, s.y));
 
-      for(let i=0;i<12;i++){
-        camera.up.set(0,0,1);
-        camera.position.copy(center).addScaledVector(FIT_DIR, dist);
-        camera.lookAt(center);
-        camera.updateMatrixWorld();
+      const distV = (height/2) / Math.tan(vFov/2);
+      const distH = (width /2) / Math.tan(hFov/2);
 
-        let maxAbs = 0;
-        for(const c of corners){
-          const p = c.clone().project(camera);
-          if(!Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
-          maxAbs = Math.max(maxAbs, Math.abs(p.x), Math.abs(p.y));
-        }
-        if(maxAbs <= 0) break;
+      // 取更严格的那个，并留一点边距
+      let dist = Math.max(distV, distH);
+      dist *= 1.15; // ✅ 想更大就调小一点(1.05)，想更稳边距就调大(1.25)
 
-        const ratio = maxAbs / FIT_TARGET_NDC; // >1 说明出屏，需要远一点；<1 说明还可更近
-        if(Math.abs(ratio - 1) < 0.015) break;
-        dist *= ratio;
-      }
+      const dir = new THREE.Vector3(-1, 1, 0.5).normalize();
+      camera.position.copy(c.clone().add(dir.multiplyScalar(dist))); // ✅ 去掉原来的 *2
 
-      // near/far（更稳的深度精度）
-      const sphere = new THREE.Sphere();
-      box.getBoundingSphere(sphere);
-      const r = Math.max(1e-6, sphere.radius);
-
-      camera.near = Math.max(0.01, dist / 5000);
-      camera.far  = dist + r * 80;
+      camera.near=Math.max(0.01,dist/1000);
+      camera.far=dist*10000;
       camera.updateProjectionMatrix();
 
       camera.up.set(0,0,1);
       lookAtTarget();
     }
+
 
     function clearMeasure(){
       measureA=measureB=null;
@@ -754,8 +701,6 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const v = parseFloat(zScaleEl.value) || 1;
       applyZScale(v);
       zScaleLabel.textContent = '×' + v.toFixed(1);
-      // 如果你希望调深度放大时也“自动贴合”，可打开下面两行：
-      // if(currentObj) fitObject(currentObj);
     });
     applyZScale(parseFloat(zScaleEl.value) || 1);
 
@@ -880,6 +825,14 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       currentScene=scenes.find(x=>x.id===id);
       const url = getActivePlyUrl();
       if(url) loadPLY(url);
+    });
+
+    /* 自适应 */
+    window.addEventListener('resize',()=>{
+      camera.aspect=window.innerWidth/(window.innerHeight-128);
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight-128);
+      axisRenderer.setSize(160,160);
     });
 
     /* 渲染循环 */
