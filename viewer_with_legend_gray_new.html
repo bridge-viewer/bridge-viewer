@@ -84,6 +84,24 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
 #status{margin-left:auto}
 
+/* ✅ 3D 上方固定文字标签（DOM叠加，字体大小恒定、不旋转） */
+#labelLayer{
+  position:absolute;
+  inset:0;
+  pointer-events:none;
+  z-index:23; /* 比 canvas 高，比 HUD(24)略低，不挡操作 */
+}
+.sonarLabel{
+  position:absolute;
+  transform:translate(-50%,-120%); /* “上方”一点 */
+  white-space:nowrap;
+  font-family:"SimSun","宋体","Songti SC",serif;
+  font-weight:700;
+  color:#ff0000;
+  font-size:24px; /* 需要更大/更小就改这里 */
+  text-shadow: 0 0 2px #fff, 0 0 6px #fff;
+}
+
 /* 隐藏校名/校徽/水印 + 只隐藏“第一行”桥梁/时间/加载 */
 #brand,#logo,#wm,#topbar,#g1{ display:none !important; }
 </style>
@@ -162,6 +180,68 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     renderer.setSize(window.innerWidth, window.innerHeight-128);
     document.getElementById('container').appendChild(renderer.domElement);
     renderer.domElement.tabIndex = 0;
+
+    /* ✅ 增加：文字覆盖层（固定字号、不旋转） */
+    const containerEl = document.getElementById('container');
+    const labelLayer = document.createElement('div');
+    labelLayer.id = 'labelLayer';
+    containerEl.appendChild(labelLayer);
+
+    function createSonarLabel(text){
+      const el = document.createElement('div');
+      el.className = 'sonarLabel';
+      el.textContent = text;
+      el.style.display = 'none';
+      labelLayer.appendChild(el);
+      return el;
+    }
+
+    // 两个固定三维坐标（你给的坐标）
+    const sonarLabels = [
+      { el: createSonarLabel('青依江声纳1'), pos: new THREE.Vector3(-95.1689, -8.7773, -2.3931) },
+      { el: createSonarLabel('青依江声纳2'), pos: new THREE.Vector3(-96.1814,  3.6400, -2.3909) },
+    ];
+
+    let sonarLabelsVisible = false;
+
+    function setSonarLabelsVisible(v){
+      sonarLabelsVisible = !!v;
+      labelLayer.style.display = sonarLabelsVisible ? 'block' : 'none';
+      if(!sonarLabelsVisible){
+        for(const it of sonarLabels) it.el.style.display = 'none';
+      }
+    }
+
+    // 只在 cloud.ply 时显示（cloud2.ply 不显示）
+    function shouldShowSonarLabels(plyUrl){
+      const clean = String(plyUrl).split('?')[0].split('#')[0];
+      const name = clean.split('/').pop().toLowerCase();
+      return name === 'cloud.ply';
+    }
+
+    function updateSonarLabels(){
+      if(!sonarLabelsVisible) return;
+
+      const w = renderer.domElement.clientWidth || 1;
+      const h = renderer.domElement.clientHeight || 1;
+
+      for(const it of sonarLabels){
+        const p = it.pos.clone().project(camera);
+
+        // 在相机后面或超出裁剪范围就隐藏
+        if(p.z < -1 || p.z > 1){
+          it.el.style.display = 'none';
+          continue;
+        }
+
+        const x = (p.x * 0.5 + 0.5) * w;
+        const y = (-p.y * 0.5 + 0.5) * h;
+
+        it.el.style.left = x + 'px';
+        it.el.style.top  = y + 'px';
+        it.el.style.display = 'block';
+      }
+    }
 
     renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
 
@@ -545,6 +625,8 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       }
       clearMeasure();clearPick();
       hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';
+      /* ✅ 清场时也隐藏文字 */
+      setSonarLabelsVisible(false);
     }
 
     function makePoints(geo){
@@ -618,6 +700,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       clearScene();
       tryLoadLegend(url);
 
+      /* ✅ 加载开始先隐藏文字，加载成功后按 cloud/cloud2 决定显示 */
+      setSonarLabelsVisible(false);
+
       loader.load(url,(geo)=>{
         geo.computeBoundingBox?.();
         currentObj = asPoints? makePoints(geo): makeMesh(geo);
@@ -625,6 +710,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
         applyZScale(currentZ);
         fitObject(currentObj);
+
+        /* ✅ 只在 cloud.ply 时显示（cloud2.ply 不显示） */
+        setSonarLabelsVisible(shouldShowSonarLabels(url));
+        updateSonarLabels();
 
         statusEl.textContent='加载完成';
         progressFill.style.width='100%';
@@ -824,6 +913,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     /* 渲染循环 */
     (function ani(){
       requestAnimationFrame(ani);
+
+      /* ✅ 每帧更新文字位置（字号恒定、不旋转） */
+      updateSonarLabels();
+
       renderer.render(scene,camera);
       mini.quaternion.copy(camera.quaternion);
       axisCamera.lookAt(0,0,0);
