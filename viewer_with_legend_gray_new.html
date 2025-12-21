@@ -93,15 +93,15 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 }
 .sonarLabel{
   position:absolute;
-  transform:translate(-50%,-120%); /* “上方”一点 */
+  transform:translate(-50%, calc(-120% + var(--dy, 0px))); /* ✅ 支持动态上下偏移 */
   white-space:nowrap;
   font-family:"SimSun","宋体","Songti SC",serif;
   font-weight:700;
   color:#ff0000;
-  font-size:18px; /* 需要更大/更小就改这里 */
+  font-size:18px;
   text-shadow: 0 0 2px #fff, 0 0 6px #fff;
 }
-
+  
 /* 隐藏校名/校徽/水印 + 只隐藏“第一行”桥梁/时间/加载 */
 #brand,#logo,#wm,#topbar,#g1{ display:none !important; }
 </style>
@@ -218,14 +218,17 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const name = clean.split('/').pop().toLowerCase();
       return name === 'cloud.ply';
     }
-
+    
     function updateSonarLabels(){
       if(!sonarLabelsVisible) return;
 
       const w = renderer.domElement.clientWidth || 1;
       const h = renderer.domElement.clientHeight || 1;
 
+      // 1) 先按“严格投影坐标”摆放，dy 清零
       for(const it of sonarLabels){
+        it.el.style.setProperty('--dy', '0px');
+
         const p = it.pos.clone().project(camera);
 
         // 在相机后面或超出裁剪范围就隐藏
@@ -241,6 +244,35 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         it.el.style.top  = y + 'px';
         it.el.style.display = 'block';
       }
+
+  // 2) 两个都可见时，做屏幕空间“重叠检测”，重叠就上下错开
+      if(sonarLabels.length < 2) return;
+
+      const a = sonarLabels[0], b = sonarLabels[1];
+      if(a.el.style.display === 'none' || b.el.style.display === 'none') return;
+
+      const ra = a.el.getBoundingClientRect();
+      const rb = b.el.getBoundingClientRect();
+
+  // 判断两个矩形是否相交
+      const overlap =
+        ra.left < rb.right &&
+        ra.right > rb.left &&
+         ra.top < rb.bottom &&
+        ra.bottom > rb.top;
+
+      if(!overlap) return;
+
+  // 3) 计算需要错开的最小距离（只错开到“不重叠”为止）
+      const overlapY = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
+      const padding = 4; // ✅ 额外留一点空隙，避免贴边仍看不清
+      const need = Math.max(0, overlapY + padding);
+
+  // 上下各挪一半：一个上移，一个下移（尽量保持“符合坐标”）
+      const half = Math.ceil(need / 2);
+
+      a.el.style.setProperty('--dy', (-half) + 'px');
+      b.el.style.setProperty('--dy', (half) + 'px');
     }
 
     renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
