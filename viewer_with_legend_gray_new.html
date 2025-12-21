@@ -507,37 +507,41 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     }
 
     function fitObject(obj){
-      const b=new THREE.Box3().setFromObject(obj);
-      const s=b.getSize(new THREE.Vector3());
-      const c=b.getCenter(new THREE.Vector3());
+      const b = new THREE.Box3().setFromObject(obj);
+      const s = b.getSize(new THREE.Vector3());
+      const c = b.getCenter(new THREE.Vector3());
       orbitTarget.copy(c);
 
-      // ✅ 用“宽/高 + 屏幕比例”来算距离，避免桥很长导致相机过远
-      const vFov = THREE.MathUtils.degToRad(camera.fov);
-      const hFov = 2 * Math.atan(Math.tan(vFov/2) * camera.aspect);
+      // ✅ 用包围球估距离（更不容易出现“右边被裁”）
+      const radius = 0.5 * s.length(); // 包围球半径（够稳）
+      const vHalf = THREE.MathUtils.degToRad(camera.fov * 0.5);
+      const hHalf = Math.atan(Math.tan(vHalf) * camera.aspect);
+      const half = Math.min(vHalf, hHalf);
 
-      // 你的 up 是 Z，所以“高度”用 z；“宽度”用 max(x,y)
-      const height = Math.max(1e-6, s.z);
-      const width  = Math.max(1e-6, Math.max(s.x, s.y));
+      let dist = radius / Math.sin(half);
+      dist *= 1.08; // 画面留边距：想更大 -> 改小(1.02~1.05)，想更稳 -> 改大(1.12~1.20)
 
-      const distV = (height/2) / Math.tan(vFov/2);
-      const distH = (width /2) / Math.tan(hFov/2);
+      // ✅ 关键：根据模型长宽，选“更侧向”的默认观察方向，避免从一端看导致左空右爆
+      let dir;
+      if (s.x >= s.y) {
+      // 模型更“沿X方向很长” -> 相机更偏Y方向看
+        dir = new THREE.Vector3(-0.20, 1.00, 0.55);
+      } else {
+      // 模型更“沿Y方向很长” -> 相机更偏X方向看
+        dir = new THREE.Vector3(-1.00, 0.20, 0.55);
+      }
+      dir.normalize();
 
-      // 取更严格的那个，并留一点边距
-      let dist = Math.max(distV, distH);
-      dist *= 1.15; // ✅ 想更大就调小一点(1.05)，想更稳边距就调大(1.25)
+      camera.position.copy(c.clone().add(dir.multiplyScalar(dist)));
 
-      const dir = new THREE.Vector3(-1, 1, 0.5).normalize();
-      camera.position.copy(c.clone().add(dir.multiplyScalar(dist))); // ✅ 去掉原来的 *2
-
-      camera.near=Math.max(0.01,dist/1000);
-      camera.far=dist*10000;
+      camera.near = Math.max(0.01, dist / 1000);
+      camera.far  = dist * 10000;
       camera.updateProjectionMatrix();
 
       camera.up.set(0,0,1);
       lookAtTarget();
     }
-   
+    
     function clearMeasure(){
       measureA=measureB=null;
       if(measureLine){root.remove(measureLine);measureLine.geometry.dispose();measureLine.material.dispose();measureLine=null;}
