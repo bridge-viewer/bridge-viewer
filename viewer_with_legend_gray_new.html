@@ -515,7 +515,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const md=Math.max(s.x,s.y,s.z)||1;
       const dist=md/(2*Math.tan(Math.PI*camera.fov/360));
       const dir = new THREE.Vector3(-1, 1, 0.5).normalize();
-      camera.position.copy(c.clone().add(dir.multiplyScalar(dist*1.4)));
+      camera.position.copy(c.clone().add(dir.multiplyScalar(dist*1)));
 
       camera.near=Math.max(0.01,dist/1000);
       camera.far=dist*10000;
