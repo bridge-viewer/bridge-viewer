@@ -196,11 +196,80 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return el;
     }
 
-    // 两个固定三维坐标（你给的坐标）
+    // ✅ 两个声纳标签：坐标将从“模型所在文件夹”的 shengna1/shengna2 文件读取
     const sonarLabels = [
-      { el: createSonarLabel('声纳2'), pos: new THREE.Vector3(-95.1689, -8.7773, -2.3931) },
-      { el: createSonarLabel('声纳1'), pos: new THREE.Vector3(-96.1814,  3.6400, -2.3909) },
+      { key:'shengna2', el: createSonarLabel('声纳2'), pos: new THREE.Vector3(), enabled:false },
+      { key:'shengna1', el: createSonarLabel('声纳1'), pos: new THREE.Vector3(), enabled:false },
     ];
+
+    // 取 plyUrl 所在文件夹（返回以 / 结尾的 baseDir）
+    function baseDirFromPlyUrl(plyUrl){
+      try{
+        const u = new URL(String(plyUrl), location.href);
+        u.hash = '';
+        u.search = '';
+        const path = u.pathname;
+        const i = path.lastIndexOf('/');
+        u.pathname = (i >= 0 ? path.slice(0, i + 1) : '/');
+        return u.href; // 以 / 结尾
+      }catch(_){
+        const clean = String(plyUrl).split('?')[0].split('#')[0];
+        const i = clean.lastIndexOf('/');
+        return (i >= 0 ? clean.slice(0, i + 1) : './');
+      }
+    }
+
+    // 读取一个坐标文件：优先无后缀，其次 .txt；失败返回 null
+    async function fetchCoordText(baseDir, name){
+      const tries = [
+        baseDir + name,
+        baseDir + name + '.txt',
+      ];
+
+      for(const url of tries){
+        try{
+          const r = await fetch(url + '?_=' + Date.now()); // 防缓存
+          if(!r.ok) continue;
+          const t = (await r.text()).trim();
+          if(t) return t;
+        }catch(_){}
+      }
+      return null;
+    }
+
+    // 解析 "x,y,z"
+    function parseXYZ(text){
+      if(!text) return null;
+      const s = text.trim().replace(/\s+/g, '');
+      const parts = s.split(',');
+      if(parts.length < 3) return null;
+      const x = parseFloat(parts[0]);
+      const y = parseFloat(parts[1]);
+      const z = parseFloat(parts[2]);
+      if(!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)) return null;
+      return {x,y,z};
+    }
+
+    // ✅ 按当前模型 url 加载 shengna1/shengna2 坐标；返回是否至少有一个可显示
+    async function loadSonarCoordsForModel(plyUrl){
+      const baseDir = baseDirFromPlyUrl(plyUrl);
+
+      const results = await Promise.all(
+        sonarLabels.map(async (it)=>{
+          const txt = await fetchCoordText(baseDir, it.key);
+          const xyz = parseXYZ(txt);
+          if(xyz){
+            it.pos.set(xyz.x, xyz.y, xyz.z);
+            it.enabled = true;
+          }else{
+            it.enabled = false;
+          }
+          return it.enabled;
+        })
+      );
+
+      return results.some(Boolean);
+    }
 
     let sonarLabelsVisible = false;
 
@@ -227,6 +296,12 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
       // 1) 先按“严格投影坐标”摆放，dy 清零
       for(const it of sonarLabels){
+        // ✅ 没有对应坐标文件就不显示该声纳
+        if(!it.enabled){
+          it.el.style.display = 'none';
+          continue;
+        }
+
         it.el.style.setProperty('--dy', '0px');
 
         const p = it.pos.clone().project(camera);
@@ -743,9 +818,16 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         applyZScale(currentZ);
         fitObject(currentObj);
 
-        /* ✅ 只在 cloud.ply 时显示（cloud2.ply 不显示） */
-        setSonarLabelsVisible(shouldShowSonarLabels(url));
-        updateSonarLabels();
+        /* ✅ 只在 cloud.ply 时显示（cloud2.ply 不显示），且坐标来自同目录 shengna1/shengna2 文件 */
+        if(shouldShowSonarLabels(url)){
+          setSonarLabelsVisible(false);
+          loadSonarCoordsForModel(url).then((anyVisible)=>{
+            setSonarLabelsVisible(anyVisible);
+            updateSonarLabels();
+          });
+        }else{
+          setSonarLabelsVisible(false);
+        }
 
         statusEl.textContent='加载完成';
         progressFill.style.width='100%';
