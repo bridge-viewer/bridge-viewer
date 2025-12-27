@@ -9,8 +9,16 @@
       "name": "小仁烟1号桥"
     },
     {
-      "id": "xiaorenyan2",
-      "name": "小仁烟2号桥"
+      "id": "xiaorenyan3",
+      "name": "小仁烟3号桥"
+    },
+    {
+      "id": "tianquanhe",
+      "name": "始阳天全河大桥"
+    },
+    {
+      "id": "yingjinghe",
+      "name": "乐英荥经河大桥"
     }
   ],
   "scenes": [
@@ -51,22 +59,58 @@
       "plyUrl": "./data/xiaorenyan1/2025-09-01/cloud.ply"
     },
     {
-      "id": "xiaorenyan2_20250701",
-      "bridgeId": "xiaorenyan2",
+      "id": "xiaorenyan3_20250701",
+      "bridgeId": "xiaorenyan3",
       "date": "2025-07-01",
-      "plyUrl": "./data/xiaorenyan2/2025-07-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan3/2025-07-01/cloud.ply"
     },
     {
-      "id": "xiaorenyan2_20250801",
-      "bridgeId": "xiaorenyan2",
+      "id": "xiaorenyan3_20250801",
+      "bridgeId": "xiaorenyan3",
       "date": "2025-08-01",
-      "plyUrl": "./data/xiaorenyan2/2025-08-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan3/2025-08-01/cloud.ply"
     },
     {
-      "id": "xiaorenyan2_20250901",
-      "bridgeId": "xiaorenyan2",
+      "id": "xiaorenyan3_20250901",
+      "bridgeId": "xiaorenyan3",
       "date": "2025-09-01",
-      "plyUrl": "./data/xiaorenyan2/2025-09-01/cloud.ply"
+      "plyUrl": "./data/xiaorenyan3/2025-09-01/cloud.ply"
+    },
+    {
+      "id": "tianquanhe_20250701",
+      "bridgeId": "tianquanhe",
+      "date": "2025-07-01",
+      "plyUrl": "./data/tianquanhe/2025-07-01/cloud.ply"
+    },
+    {
+      "id": "tianquanhe_20250801",
+      "bridgeId": "tianquanhe",
+      "date": "2025-08-01",
+      "plyUrl": "./data/tianquanhe/2025-08-01/cloud.ply"
+    },
+    {
+      "id": "tianquanhe_20250901",
+      "bridgeId": "tianquanhe",
+      "date": "2025-09-01",
+      "plyUrl": "./data/tianquanhe/2025-09-01/cloud.ply"
+    },
+    {
+      "id": "yingjinghe_20250701",
+      "bridgeId": "yingjinghe",
+      "date": "2025-07-01",
+      "plyUrl": "./data/yingjinghe/2025-07-01/cloud.ply"
+    },
+    {
+      "id": "yingjinghe_20250801",
+      "bridgeId": "yingjinghe",
+      "date": "2025-08-01",
+      "plyUrl": "./data/yingjinghe/2025-08-01/cloud.ply"
+    },
+    {
+      "id": "yingjinghe_20250901",
+      "bridgeId": "yingjinghe",
+      "date": "2025-09-01",
+      "plyUrl": "./data/yingjinghe/2025-09-01/cloud.ply"
     }
   ]
 }
