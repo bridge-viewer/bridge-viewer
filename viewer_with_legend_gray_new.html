@@ -320,7 +320,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         it.el.style.display = 'block';
       }
 
-  // 2) 两个都可见时，做屏幕空间“重叠检测”，重叠就上下错开
+      // 2) 两个都可见时，做屏幕空间“重叠检测”，重叠就上下错开
       if(sonarLabels.length < 2) return;
 
       const a = sonarLabels[0], b = sonarLabels[1];
@@ -329,21 +329,21 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       const ra = a.el.getBoundingClientRect();
       const rb = b.el.getBoundingClientRect();
 
-  // 判断两个矩形是否相交
+      // 判断两个矩形是否相交
       const overlap =
         ra.left < rb.right &&
         ra.right > rb.left &&
-         ra.top < rb.bottom &&
+        ra.top < rb.bottom &&
         ra.bottom > rb.top;
 
       if(!overlap) return;
 
-  // 3) 计算需要错开的最小距离（只错开到“不重叠”为止）
+      // 3) 计算需要错开的最小距离（只错开到“不重叠”为止）
       const overlapY = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
       const padding = 4; // ✅ 额外留一点空隙，避免贴边仍看不清
       const need = Math.max(0, overlapY + padding);
 
-  // 上下各挪一半：一个上移，一个下移（尽量保持“符合坐标”）
+      // 上下各挪一半：一个上移，一个下移（尽量保持“符合坐标”）
       const half = Math.ceil(need / 2);
 
       a.el.style.setProperty('--dy', (-half) + 'px');
@@ -356,6 +356,99 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
     const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
 
     const root = new THREE.Group(); scene.add(root);
+
+    /* ======================= ✅ 新增：线扫 + 坐标增量 ======================= */
+
+    // 坐标增量 Δx,Δy,Δz（来自同目录：zuobiaozhuanhuan 或 zuobiaozhuanhuan.txt）
+    let coordDelta = new THREE.Vector3(0,0,0);
+
+    // 线扫显示组（紫色线+紫色点）
+    let xiansaoGroup = null;
+
+    // 读取文本：优先无后缀，其次 .txt
+    async function fetchTextTry(baseDir, name){
+      const tries = [ baseDir + name, baseDir + name + '.txt' ];
+      for(const url of tries){
+        try{
+          const r = await fetch(url + '?_=' + Date.now());
+          if(!r.ok) continue;
+          const t = (await r.text()).trim();
+          if(t) return t;
+        }catch(_){}
+      }
+      return null;
+    }
+
+    // 加载坐标增量
+    async function loadCoordDeltaForModel(plyUrl){
+      const baseDir = baseDirFromPlyUrl(plyUrl);
+      const txt = await fetchTextTry(baseDir, 'zuobiaozhuanhuan');
+      const xyz = parseXYZ(txt);
+      if(xyz){
+        coordDelta.set(xyz.x, xyz.y, xyz.z);
+      }else{
+        coordDelta.set(0,0,0);
+      }
+      return coordDelta;
+    }
+
+    // 加载线扫点：xiansao.txt（每行 x y z 或 x,y,z）
+    async function loadXiansaoPointsForModel(plyUrl){
+      const baseDir = baseDirFromPlyUrl(plyUrl);
+      const url = baseDir + 'xiansao.txt';
+      try{
+        const r = await fetch(url + '?_=' + Date.now());
+        if(!r.ok) return null;
+        const text = (await r.text()).trim();
+        if(!text) return null;
+
+        const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+        const pts = [];
+        for(const line of lines){
+          const parts = line.split(/[,\s]+/).filter(Boolean);
+          if(parts.length < 3) continue;
+          const x = parseFloat(parts[0]);
+          const y = parseFloat(parts[1]);
+          const z = parseFloat(parts[2]);
+          if(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)){
+            pts.push(new THREE.Vector3(x,y,z));
+          }
+        }
+        return pts.length ? pts : null;
+      }catch(_){
+        return null;
+      }
+    }
+
+    function clearXiansao(){
+      if(!xiansaoGroup) return;
+      root.remove(xiansaoGroup);
+      xiansaoGroup.traverse(o=>{
+        if(o.geometry) o.geometry.dispose?.();
+        if(o.material) o.material.dispose?.();
+      });
+      xiansaoGroup = null;
+    }
+
+    function showXiansao(pts){
+      clearXiansao();
+      if(!pts || pts.length < 2) return;
+
+      xiansaoGroup = new THREE.Group();
+
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x8000ff }); // 紫色
+      xiansaoGroup.add(new THREE.Line(lineGeo, lineMat));
+
+      const ptsGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const size = sceneScale() * 0.008; // 相对场景大小
+      const ptsMat = new THREE.PointsMaterial({ color: 0x8000ff, size });
+      xiansaoGroup.add(new THREE.Points(ptsGeo, ptsMat));
+
+      root.add(xiansaoGroup);
+    }
+
+    /* ======================= ✅ 新增结束 ======================= */
 
     /* 小坐标系（正交） */
     const axisScene = new THREE.Scene();
@@ -734,6 +827,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';
       /* ✅ 清场时也隐藏文字 */
       setSonarLabelsVisible(false);
+
+      // ✅ 新增：清除线扫 & 重置增量（防止加载失败沿用旧值）
+      clearXiansao();
+      coordDelta.set(0,0,0);
     }
 
     function makePoints(geo){
@@ -810,6 +907,10 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       /* ✅ 加载开始先隐藏文字，加载成功后按 cloud/cloud2 决定显示 */
       setSonarLabelsVisible(false);
 
+      // ✅ 新增：并发读取坐标增量 & 线扫（不影响你的UI/布局）
+      const deltaPromise = loadCoordDeltaForModel(url);
+      const xiansaoPromise = loadXiansaoPointsForModel(url);
+
       loader.load(url,(geo)=>{
         geo.computeBoundingBox?.();
         currentObj = asPoints? makePoints(geo): makeMesh(geo);
@@ -817,6 +918,11 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
         applyZScale(currentZ);
         fitObject(currentObj);
+
+        // ✅ 新增：模型加载完成后，挂上线扫（如有）
+        xiansaoPromise.then((pts)=>{ if(pts) showXiansao(pts); }).catch(()=>{});
+        // 坐标增量只需加载即可（coordDelta 已更新）
+        deltaPromise.catch(()=>{ coordDelta.set(0,0,0); });
 
         /* ✅ 只在 cloud.ply 时显示（cloud2.ply 不显示），且坐标来自同目录 shengna1/shengna2 文件 */
         if(shouldShowSonarLabels(url)){
@@ -919,7 +1025,12 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         pickMarker=makeMarker(0x9a4dff);
         pickMarker.position.copy(p);
         root.add(pickMarker);
-        hud.textContent=`拾取\nX:${p.x.toFixed(3)}\nY:${p.y.toFixed(3)}\nZ:${p.z.toFixed(3)}`;
+
+        // ✅ 修改：显示坐标 = 原始坐标 + 增量
+        const px = p.x + coordDelta.x;
+        const py = p.y + coordDelta.y;
+        const pz = p.z + coordDelta.z;
+        hud.textContent=`拾取\nX:${px.toFixed(3)}\nY:${py.toFixed(3)}\nZ:${pz.toFixed(3)}`;
       }
 
       if(isOn(measureBtn)){
@@ -929,7 +1040,12 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
           measureAMarker=makeMarker(0x00e0ff);
           measureAMarker.position.copy(measureA);
           root.add(measureAMarker);
-          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`;
+
+          // ✅ 修改：显示坐标 = A + 增量
+          const ax = measureA.x + coordDelta.x;
+          const ay = measureA.y + coordDelta.y;
+          const az = measureA.z + coordDelta.z;
+          hud.textContent=`测距(A)\nX:${ax.toFixed(3)}\nY:${ay.toFixed(3)}\nZ:${az.toFixed(3)}`;
         } else if(!measureB){
           measureB=p.clone();
           if(measureBMarker) root.remove(measureBMarker);
@@ -940,16 +1056,35 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
           if(!measureLine){ measureLine=makeMeasureLine(measureA,measureB); root.add(measureLine); }
           else updateMeasureLine();
 
+          // ✅ 距离/差值：仍用原始坐标（不受增量影响）
           const dx=measureB.x-measureA.x, dy=measureB.y-measureA.y, dz=measureB.z-measureA.z;
           const D=Math.sqrt(dx*dx+dy*dy+dz*dz);
-          hud.textContent=`ΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${D.toFixed(3)}`;
+
+          // ✅ 显示坐标：A/B + 增量
+          const ax = measureA.x + coordDelta.x;
+          const ay = measureA.y + coordDelta.y;
+          const az = measureA.z + coordDelta.z;
+          const bx = measureB.x + coordDelta.x;
+          const by = measureB.y + coordDelta.y;
+          const bz = measureB.z + coordDelta.z;
+
+          hud.textContent =
+            `测距 A→B\n` +
+            `A: (${ax.toFixed(3)}, ${ay.toFixed(3)}, ${az.toFixed(3)})\n` +
+            `B: (${bx.toFixed(3)}, ${by.toFixed(3)}, ${bz.toFixed(3)})\n` +
+            `ΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${D.toFixed(3)}`;
         } else {
           clearMeasure();
           measureA=p.clone();
           measureAMarker=makeMarker(0x00e0ff);
           measureAMarker.position.copy(measureA);
           root.add(measureAMarker);
-          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`;
+
+          // ✅ 修改：显示坐标 = A + 增量
+          const ax = measureA.x + coordDelta.x;
+          const ay = measureA.y + coordDelta.y;
+          const az = measureA.z + coordDelta.z;
+          hud.textContent=`测距(A)\nX:${ax.toFixed(3)}\nY:${ay.toFixed(3)}\nZ:${az.toFixed(3)}`;
         }
       }
     });
