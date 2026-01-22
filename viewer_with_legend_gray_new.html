@@ -1,234 +1,155 @@
 <!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
-<title>桥梁水下河床3D声呐模型孪生系统</title>
-<style>
-:root{
-  --bg:#cccccc;
-  --panel:#ffffffee; --text:#222; --muted:#667085;
-  --primary:#315cf0; --primary-weak:#e7ecff; --border:#d9d9d9; --shadow:0 6px 20px rgba(0,0,0,.08);
-  --safe-b: env(safe-area-inset-bottom, 12px);
-}
-*{box-sizing:border-box} body{margin:0;background:var(--bg);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Microsoft YaHei",sans-serif;color:var(--text);}
-
-#topbar{position:sticky;top:0;z-index:30;display:flex;gap:10px;align-items:center;padding:10px 12px;background:var(--panel);backdrop-filter:saturate(180%) blur(6px);border-bottom:1px solid var(--border)}
-#logo{width:32px;height:32px;border-radius:50%}
-#title{font-size:16px;font-weight:700}
-#brand{margin-left:auto;display:flex;align-items:center;gap:8px}
-#brand img{width:36px;height:36px;border-radius:50%}
-#brand .name{font-weight:700;color:#22314a;font-size:14px}
-
-#toolbar{position:sticky;top:54px;z-index:25;display:grid;grid-template-columns:repeat(12,1fr);gap:8px;padding:10px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
-.row{display:contents}
-.group{display:flex;gap:8px;align-items:center;background:#fff;border:1px solid var(--border);border-radius:10px;padding:8px 10px;box-shadow:var(--shadow)}
-.group label{font-size:13px;color:var(--muted)}
-select,button,input[type=range]{font-size:14px;border:1px solid var(--border);border-radius:8px;background:#fff;color:#fff;color:var(--text);padding:6px 10px}
-select{min-width:140px} button.primary{background:var(--primary);border-color:var(--primary);color:#fff}
-.toggle{padding:6px 10px;border-radius:20px;background:var(--primary-weak);border-color:#cbd5ff;color:#2946b8}
-.toggle[aria-pressed="true"]{background:var(--primary);color:#fff;border-color:var(--primary)}
-.muted{color:var(--muted)}
-#g1{grid-column:span 12} #g2{grid-column:span 12}
-@media (min-width:860px){ #g1{grid-column:span 7} #g2{grid-column:span 5} }
-
-#container{position:fixed;inset:0;top:128px}
-
-#hud{position:fixed;left:12px;bottom:var(--safe-b);transform:translateY(-6px);background:rgba(0,0,0,.7);color:#fff;padding:8px 10px;border-radius:8px;font-size:13px;white-space:pre;z-index:24}
-#wm{position:fixed;left:12px;bottom:calc(var(--safe-b) + 64px);opacity:.10;z-index:10;pointer-events:none}
-#wm img{width:96px;height:96px;object-fit:contain}
-#axisWrap{position:fixed;right:12px;bottom:var(--safe-b);width:160px;height:160px;pointer-events:none;z-index:24}
-#axisCanvas{position:absolute;inset:0;width:160px;height:160px;background:transparent;pointer-events:auto}
-
-#progressWrap{
-  position:fixed; left:50%; top:50%; transform:translate(-50%,-50%);
-  min-width:240px; padding:12px 16px; background:rgba(0,0,0,.7); color:#fff;
-  border-radius:12px; z-index:40; display:none; text-align:center;
-  box-shadow:0 8px 30px rgba(0,0,0,.25);
-}
-#progressBar{width:100%; height:10px; background:rgba(255,255,255,.25); border-radius:999px; overflow:hidden; margin-top:8px}
-#progressFill{height:100%; width:0%; background:#4ad5ff; border-radius:999px; transition:width .2s ease}
-
-#legendDock{
-  position:fixed; left:12px; top:50%; transform:translateY(-50%); z-index:22;
-  display:flex; flex-direction:column; align-items:flex-start; gap:6px; pointer-events:none;
-}
-#legendTitle{
-  font-size:12px; color:#333; background:var(--bg); padding:4px 6px; border-radius:6px;
-  border:1px solid rgba(0,0,0,.2);
-}
-#legendWrap{
-  display:flex; align-items:flex-start; gap:6px;
-  background:var(--bg); border:1px solid rgba(0,0,0,.25);
-  border-radius:6px; padding:6px; pointer-events:auto;
-}
-#legend{display:block; width:24px; height:240px; border:1px solid #888}
-#legendTicks{
-  display:flex; flex-direction:column; gap:0; font-size:12px; color:#000;
-  font-family:"Times New Roman", Times, serif; line-height:1; width:46px; text-align:right;
-}
-#legendTicks div{height:calc(240px/10); display:flex; align-items:center; justify-content:flex-end; padding-right:2px}
-
-#zPanel{
-  height:240px; width:40px;
-  display:flex; flex-direction:column; align-items:center; gap:6px;
-  background:rgba(255,255,255,.9); border:1px solid rgba(0,0,0,.15);
-  border-radius:6px; padding:6px 4px;
-}
-#zPanel input[type=range]{
-  writing-mode: bt-lr; -webkit-appearance: slider-vertical;
-  width:26px; height:100%;
-}
-#zPanel .label{font-size:12px;line-height:1.1;text-align:center;color:#333}
-#zPanel .val{font-size:12px;color:#333}
-
-#status{margin-left:auto}
-
-/* ✅ 3D 上方固定文字标签（DOM叠加，字体大小恒定、不旋转） */
-#labelLayer{
-  position:absolute;
-  inset:0;
-  pointer-events:none;
-  z-index:23; /* 比 canvas 高，比 HUD(24)略低，不挡操作 */
-}
-.sonarLabel{
-  position:absolute;
-  transform:translate(-50%, calc(-120% + var(--dy, 0px))); /* ✅ 支持动态上下偏移 */
-  white-space:nowrap;
-  font-family:"SimSun","宋体","Songti SC",serif;
-  font-weight:700;
-  color:#ff0000;
-  font-size:18px;
-  text-shadow: 0 0 2px #fff, 0 0 6px #fff;
-}
-  
-/* 隐藏校名/校徽/水印 + 只隐藏“第一行”桥梁/时间/加载 */
-#brand,#logo,#wm,#topbar,#g1{ display:none !important; }
-</style>
-
-<script type="importmap">{"imports":{"three":"./three.module.js"}}</script>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>桥梁地形云图在线高级查看器</title>
+  <style>
+    body { margin: 0; font-family: Arial, sans-serif; background: #1e1e1e; color: #eee; }
+    header { position: fixed; top: 0; left: 0; right: 0; background: rgba(30,30,30,0.95); padding: 8px 12px; display: flex; gap: 8px; align-items: center; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
+    select, button, input[type=range], label { font-size: 14px; }
+    select, button { padding: 4px 8px; }
+    #container { position: fixed; inset: 0; top: 60px; }
+    #hud { position: fixed; top: 60px; left: 10px; background: rgba(0,0,0,.55); color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 13px; white-space: pre; line-height: 1.5; }
+    #legend { position: fixed; right: 20px; top: 80px; width: 20px; height: 200px; background: linear-gradient(to top, #0040ff, #00ffff, #00c000, #ffff00, #ff7f00, #ff0000); border: 1px solid #888; border-radius: 2px; }
+    #legend::after { content: ""; position: absolute; right: 26px; top: -6px; color:#bbb; font-size: 12px; }
+    #axisCanvas { position: fixed; right: 20px; bottom: 20px; width: 100px; height: 100px; background: transparent; }
+    .sep { width:1px; height:22px; background:#444; margin:0 6px; }
+    .muted { color:#aaa; }
+    .btn-toggle[aria-pressed="true"]{ background:#315cf0; color:#fff; border:1px solid #4b74ff; }
+    .btn-toggle{ background:#2a2a2a; color:#ddd; border:1px solid #444; border-radius:6px; }
+  </style>
+  <script type="importmap">{ "imports": { "three": "./three.module.js" } }</script>
 </head>
 <body>
-  <header id="topbar">
-    <img id="logo" src="./logo.png" alt="logo"/>
-    <div id="title">桥梁水下河床3D声呐模型孪生系统</div>
-    <div id="brand"><img src="./logo.png" alt="长安大学"/><span class="name">长安大学</span></div>
+  <header>
+    <label>桥梁：</label>
+    <select id="bridgeSel"></select>
+    <label>时间：</label>
+    <select id="dateSel"></select>
+    <button id="loadBtn">加载</button>
+    <div class="sep"></div>
+    <label><input type="checkbox" id="pointMode"> 点显示</label>
+    <label>点大小 <input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5"></label>
+    <div class="sep"></div>
+    <button id="pickBtn" class="btn-toggle" aria-pressed="false" title="单击拾取点，显示坐标与Z值">拾取</button>
+    <button id="measureBtn" class="btn-toggle" aria-pressed="false" title="两点测距">测距</button>
+    <button id="clearBtn">清除</button>
+    <span id="status" style="margin-left:auto" class="muted">就绪</span>
   </header>
-
-  <section id="toolbar">
-    <div id="g1" class="row">
-      <div class="group" style="grid-column:span 12;">
-        <label>桥梁</label><select id="bridgeSel"></select>
-        <label>时间</label><select id="dateSel"></select>
-        <button id="loadBtn" class="primary">加载</button>
-        <span id="status" class="muted">就绪</span>
-      </div>
-    </div>
-    <div id="g2" class="row">
-      <div class="group" style="grid-column:span 12;flex-wrap:wrap">
-        <!-- ✅ 新增：仅显示河床 -->
-        <button id="bedOnlyBtn" class="toggle" aria-pressed="false">仅显示河床</button>
-
-        <button id="modeBtn" class="toggle" aria-pressed="false">曲面</button>
-        <label>点大小</label><input type="range" id="pointSize" min="0.5" max="5" step="0.1" value="1.5" style="width:160px">
-        <button id="pickBtn" class="toggle" aria-pressed="false">拾取</button>
-        <button id="measureBtn" class="toggle" aria-pressed="false">测距</button>
-        <button id="clearBtn" class="toggle" aria-pressed="false">清除</button>
-      </div>
-    </div>
-  </section>
-
   <div id="container"></div>
-
-  <aside id="legendDock">
-    <div id="legendTitle">河床深度 / m</div>
-    <div id="legendWrap">
-      <div id="legendTicks"></div>
-      <canvas id="legend" width="24" height="240"></canvas>
-
-      <div id="zPanel">
-        <div class="label">深度<br>放大</div>
-        <input id="zScale" type="range" min="1" max="10" step="0.1" value="1" aria-label="深度放大">
-        <div id="zScaleLabel" class="val">×1.0</div>
-      </div>
-    </div>
-  </aside>
-
-  <div id="progressWrap">
-    <div id="progressText">加载中…</div>
-    <div id="progressBar"><div id="progressFill"></div></div>
-  </div>
-
-  <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。</div>
-  <div id="axisWrap"><canvas id="axisCanvas" width="160" height="160"></canvas></div>
-  <div id="wm"><img src="./logo.png" alt="长安大学水印"/></div>
+  <div id="hud">提示：启用“拾取”或“测距”后，在模型上点击。
+</div>
+  <div id="legend" title="示意色带"></div>
+  <canvas id="axisCanvas"></canvas>
 
   <script type="module">
     import * as THREE from 'three';
+    import { OrbitControls } from './OrbitControls.js';
     import { PLYLoader } from './PLYLoader.js';
 
-    /* 场景 */
+    // ==== 场景基础 ====
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(getComputedStyle(document.documentElement).getPropertyValue('--bg').trim());
+    scene.background = new THREE.Color(0x1e1e1e);
 
-    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-128), 0.1, 100000);
+    const camera = new THREE.PerspectiveCamera(60, window.innerWidth/(window.innerHeight-60), 0.1, 100000);
     camera.position.set(100,100,100);
-    camera.up.set(0,0,1);
 
-    const renderer = new THREE.WebGLRenderer({antialias:true});
+    const renderer = new THREE.WebGLRenderer({ antialias:true });
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight-128);
+    renderer.setSize(window.innerWidth, window.innerHeight-60);
     document.getElementById('container').appendChild(renderer.domElement);
-    renderer.domElement.tabIndex = 0;
 
-    /* ✅ 增加：文字覆盖层（固定字号、不旋转） */
-    const containerEl = document.getElementById('container');
-    const labelLayer = document.createElement('div');
-    labelLayer.id = 'labelLayer';
-    containerEl.appendChild(labelLayer);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
 
-    function createSonarLabel(text){
-      const el = document.createElement('div');
-      el.className = 'sonarLabel';
-      el.textContent = text;
-      el.style.display = 'none';
-      labelLayer.appendChild(el);
-      return el;
+    scene.add(new THREE.AmbientLight(0xffffff,0.55));
+    const dir = new THREE.DirectionalLight(0xffffff,0.9); dir.position.set(100,200,100); scene.add(dir);
+
+    const root = new THREE.Group(); scene.add(root);
+
+    const axesHelper = new THREE.AxesHelper(50); scene.add(axesHelper);
+
+    // 小坐标轴视图（稳定）
+    const axisScene = new THREE.Scene();
+    const axisCamera = new THREE.PerspectiveCamera(50, 1, 0.1, 1000);
+    axisCamera.position.set(0,0,2);
+    axisCamera.up.copy(camera.up);
+    const axisRenderer = new THREE.WebGLRenderer({ canvas: document.getElementById('axisCanvas'), alpha:true, antialias:true });
+    axisRenderer.setSize(100,100);
+    axisScene.add(new THREE.AxesHelper(1.2));
+
+    // ==== UI ====
+    const status = document.getElementById('status');
+    const hud = document.getElementById('hud');
+    const pointMode = document.getElementById('pointMode');
+    const pointSize = document.getElementById('pointSize');
+    const pickBtn = document.getElementById('pickBtn');
+    const measureBtn = document.getElementById('measureBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // ==== 变量 ====
+    const loader = new PLYLoader();
+    let currentObj = null; // Points 或 Mesh
+    let measureA = null, measureB = null, measureLine = null;
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+
+    // ✅ 新增：当前模型坐标增量（来自 zuobiaozhuanhuan.txt）
+    let coordDelta = new THREE.Vector3(0,0,0); // Δx,Δy,Δz
+
+    // ✅ 新增：线扫（来自 xiansao.txt）
+    let xiansaoGroup = null; // points + line 的组
+
+    // ✅ 新增：记录当前加载的 plyUrl，便于点模式切换时重载并带上附加文件
+    let currentPlyUrl = null;
+
+    function setToggle(btn, on){ btn.setAttribute('aria-pressed', on? 'true':'false'); }
+    function isOn(btn){ return btn.getAttribute('aria-pressed') === 'true'; }
+
+    function sceneScale(){
+      if(!currentObj) return 1;
+      const box = new THREE.Box3().setFromObject(currentObj);
+      const size = box.getSize(new THREE.Vector3());
+      return Math.max(size.x,size.y,size.z) || 1;
     }
 
-    // ✅ 两个声纳标签：坐标将从“模型所在文件夹”的 shengna1/shengna2 文件读取
-    const sonarLabels = [
-      { key:'shengna2', el: createSonarLabel('声纳2'), pos: new THREE.Vector3(), enabled:false },
-      { key:'shengna1', el: createSonarLabel('声纳1'), pos: new THREE.Vector3(), enabled:false },
-    ];
+    function fitObject(obj){
+      const box = new THREE.Box3().setFromObject(obj);
+      const size = box.getSize(new THREE.Vector3());
+      const center = box.getCenter(new THREE.Vector3());
+      const maxDim = Math.max(size.x,size.y,size.z) || 1;
+      const dist = maxDim/(2*Math.tan(Math.PI*camera.fov/360));
+      camera.position.copy(center.clone().add(new THREE.Vector3(1,1,1).normalize().multiplyScalar(dist*2)));
+      controls.target.copy(center); controls.update();
+      camera.near = Math.max(0.01, dist/1000); camera.far = dist*10000; camera.updateProjectionMatrix();
+    }
 
-    // 取 plyUrl 所在文件夹（返回以 / 结尾的 baseDir）
+    // ====== ✅ 新增：从 plyUrl 推导同目录 baseDir ======
     function baseDirFromPlyUrl(plyUrl){
       try{
         const u = new URL(String(plyUrl), location.href);
-        u.hash = '';
-        u.search = '';
+        u.hash = ''; u.search = '';
         const path = u.pathname;
         const i = path.lastIndexOf('/');
-        u.pathname = (i >= 0 ? path.slice(0, i + 1) : '/');
+        u.pathname = (i >= 0 ? path.slice(0, i+1) : '/');
         return u.href; // 以 / 结尾
       }catch(_){
         const clean = String(plyUrl).split('?')[0].split('#')[0];
         const i = clean.lastIndexOf('/');
-        return (i >= 0 ? clean.slice(0, i + 1) : './');
+        return (i >= 0 ? clean.slice(0, i+1) : './');
       }
     }
 
-    // 读取一个坐标文件：优先无后缀，其次 .txt；失败返回 null
-    async function fetchCoordText(baseDir, name){
+    // 读取文本：优先无后缀，其次 .txt
+    async function fetchTextTry(baseDir, name){
       const tries = [
         baseDir + name,
         baseDir + name + '.txt',
       ];
-
       for(const url of tries){
         try{
-          const r = await fetch(url + '?_=' + Date.now()); // 防缓存
+          const r = await fetch(url + '?_=' + Date.now());
           if(!r.ok) continue;
           const t = (await r.text()).trim();
           if(t) return t;
@@ -237,10 +158,9 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return null;
     }
 
-    // 解析 "x,y,z"
     function parseXYZ(text){
       if(!text) return null;
-      const s = text.trim().replace(/\s+/g, '');
+      const s = text.trim().replace(/\s+/g,'');
       const parts = s.split(',');
       if(parts.length < 3) return null;
       const x = parseFloat(parts[0]);
@@ -250,477 +170,76 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       return {x,y,z};
     }
 
-    // ✅ 按当前模型 url 加载 shengna1/shengna2 坐标；返回是否至少有一个可显示
-    async function loadSonarCoordsForModel(plyUrl){
+    // ====== ✅ 新增：加载 zuobiaozhuanhuan.txt (Δx,Δy,Δz) ======
+    async function loadCoordDeltaForModel(plyUrl){
       const baseDir = baseDirFromPlyUrl(plyUrl);
-
-      const results = await Promise.all(
-        sonarLabels.map(async (it)=>{
-          const txt = await fetchCoordText(baseDir, it.key);
-          const xyz = parseXYZ(txt);
-          if(xyz){
-            it.pos.set(xyz.x, xyz.y, xyz.z);
-            it.enabled = true;
-          }else{
-            it.enabled = false;
-          }
-          return it.enabled;
-        })
-      );
-
-      return results.some(Boolean);
-    }
-
-    let sonarLabelsVisible = false;
-
-    function setSonarLabelsVisible(v){
-      sonarLabelsVisible = !!v;
-      labelLayer.style.display = sonarLabelsVisible ? 'block' : 'none';
-      if(!sonarLabelsVisible){
-        for(const it of sonarLabels) it.el.style.display = 'none';
+      const txt = await fetchTextTry(baseDir, 'zuobiaozhuanhuan'); // 会尝试无后缀和 .txt
+      const xyz = parseXYZ(txt);
+      if(xyz){
+        coordDelta.set(xyz.x, xyz.y, xyz.z);
+      }else{
+        coordDelta.set(0,0,0);
       }
+      return coordDelta;
     }
 
-    // 只在 cloud.ply 时显示（cloud2.ply 不显示）
-    function shouldShowSonarLabels(plyUrl){
-      const clean = String(plyUrl).split('?')[0].split('#')[0];
-      const name = clean.split('/').pop().toLowerCase();
-      return name === 'cloud.ply';
-    }
-    
-    function updateSonarLabels(){
-      if(!sonarLabelsVisible) return;
-
-      const w = renderer.domElement.clientWidth || 1;
-      const h = renderer.domElement.clientHeight || 1;
-
-      // 1) 先按“严格投影坐标”摆放，dy 清零
-      for(const it of sonarLabels){
-        // ✅ 没有对应坐标文件就不显示该声纳
-        if(!it.enabled){
-          it.el.style.display = 'none';
-          continue;
-        }
-
-        it.el.style.setProperty('--dy', '0px');
-
-        const p = it.pos.clone().project(camera);
-
-        // 在相机后面或超出裁剪范围就隐藏
-        if(p.z < -1 || p.z > 1){
-          it.el.style.display = 'none';
-          continue;
-        }
-
-        const x = (p.x * 0.5 + 0.5) * w;
-        const y = (-p.y * 0.5 + 0.5) * h;
-
-        it.el.style.left = x + 'px';
-        it.el.style.top  = y + 'px';
-        it.el.style.display = 'block';
-      }
-
-  // 2) 两个都可见时，做屏幕空间“重叠检测”，重叠就上下错开
-      if(sonarLabels.length < 2) return;
-
-      const a = sonarLabels[0], b = sonarLabels[1];
-      if(a.el.style.display === 'none' || b.el.style.display === 'none') return;
-
-      const ra = a.el.getBoundingClientRect();
-      const rb = b.el.getBoundingClientRect();
-
-  // 判断两个矩形是否相交
-      const overlap =
-        ra.left < rb.right &&
-        ra.right > rb.left &&
-         ra.top < rb.bottom &&
-        ra.bottom > rb.top;
-
-      if(!overlap) return;
-
-  // 3) 计算需要错开的最小距离（只错开到“不重叠”为止）
-      const overlapY = Math.min(ra.bottom, rb.bottom) - Math.max(ra.top, rb.top);
-      const padding = 4; // ✅ 额外留一点空隙，避免贴边仍看不清
-      const need = Math.max(0, overlapY + padding);
-
-  // 上下各挪一半：一个上移，一个下移（尽量保持“符合坐标”）
-      const half = Math.ceil(need / 2);
-
-      a.el.style.setProperty('--dy', (-half) + 'px');
-      b.el.style.setProperty('--dy', (half) + 'px');
-    }
-
-    renderer.domElement.addEventListener('contextmenu', (e)=>e.preventDefault());
-
-    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
-    const d = new THREE.DirectionalLight(0xffffff, 0.9); d.position.set(120,220,120); scene.add(d);
-
-    const root = new THREE.Group(); scene.add(root);
-
-    /* 小坐标系（正交） */
-    const axisScene = new THREE.Scene();
-    const AXIS_UNITS = 2.2;
-    const axisCamera = new THREE.OrthographicCamera(-AXIS_UNITS, AXIS_UNITS, AXIS_UNITS, -AXIS_UNITS, -10, 10);
-    axisCamera.position.set(0,0,2); axisCamera.up.set(0,1,0); axisCamera.lookAt(0,0,0);
-    const axisRenderer = new THREE.WebGLRenderer({canvas: document.getElementById('axisCanvas'), alpha:true, antialias:true});
-    axisRenderer.setSize(160,160);
-    const mini = new THREE.Group(); axisScene.add(mini); mini.scale.set(0.95,0.95,0.95);
-    function makeLabelSprite(t,c){const s=128,cv=document.createElement('canvas');cv.width=cv.height=s;const ctx=cv.getContext('2d');
-      ctx.clearRect(0,0,s,s);ctx.fillStyle=c;ctx.font='bold 72px Arial';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(t,s/2,s/2);
-      const tx=new THREE.CanvasTexture(cv);return new THREE.Sprite(new THREE.SpriteMaterial({map:tx,transparent:true}))}
-    function addAxis(dir,color,name){const len=1.35, headLen=0.33, headWid=0.21;
-      const ah=new THREE.ArrowHelper(dir,new THREE.Vector3(0,0,0),len,color,headLen,headWid); mini.add(ah);
-      const sp=makeLabelSprite(name,'#000'); sp.scale.set(0.9,0.9,0.9); sp.position.copy(dir.clone().multiplyScalar(1.5)); mini.add(sp);}
-    addAxis(new THREE.Vector3(1,0,0),0xff4444,'X'); addAxis(new THREE.Vector3(0,1,0),0x44ff44,'Y'); addAxis(new THREE.Vector3(0,0,1),0x4488ff,'Z');
-
-    /* UI */
-    const statusEl=document.getElementById('status');
-    const hud=document.getElementById('hud');
-    const pointSize=document.getElementById('pointSize');
-    const modeBtn=document.getElementById('modeBtn');
-    const pickBtn=document.getElementById('pickBtn');
-    const measureBtn=document.getElementById('measureBtn');
-    const clearBtn=document.getElementById('clearBtn');
-
-    const bedOnlyBtn=document.getElementById('bedOnlyBtn'); // ✅ 新增
-
-    const zScaleEl = document.getElementById('zScale');
-    const zScaleLabel = document.getElementById('zScaleLabel');
-
-    const progressWrap = document.getElementById('progressWrap');
-    const progressText = document.getElementById('progressText');
-    const progressFill = document.getElementById('progressFill');
-
-    /* 变量 */
-    const loader=new PLYLoader(); let currentObj=null, asPoints=false;
-    let measureA=null, measureB=null, measureLine=null, measureAMarker=null, measureBMarker=null;
-    let pickMarker=null;
-
-    const rc=new THREE.Raycaster(), mouse=new THREE.Vector2();
-
-    // 视图参考点（用于缩放平面/平移尺度）
-    const orbitTarget = new THREE.Vector3(0,0,0);
-
-    function lookAtTarget(){
-      camera.lookAt(orbitTarget);
-      camera.updateMatrixWorld();
-    }
-
-    /* 工具函数 */
-    function sceneScale(){
-      const b=new THREE.Box3().setFromObject(root);
-      const s=b.getSize(new THREE.Vector3());
-      return Math.max(s.x,s.y,s.z)||1;
-    }
-
-    // 重拾取（用于：中键按下时确定旋转中心；次数很少）
-    function pickPointFromEvent(e){
-      const r = renderer.domElement.getBoundingClientRect();
-      mouse.set(
-        ((e.clientX - r.left)/r.width)*2 - 1,
-        -((e.clientY - r.top)/r.height)*2 + 1
-      );
-
-      rc.setFromCamera(mouse, camera);
-      rc.params.Points.threshold = sceneScale() * 0.01;
-
-      if (currentObj){
-        const hits = rc.intersectObject(currentObj, true);
-        if (hits.length) return hits[0].point.clone();
-      }
-
-      const camDir = new THREE.Vector3();
-      camera.getWorldDirection(camDir);
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, orbitTarget);
-      const p = new THREE.Vector3();
-      const ok = rc.ray.intersectPlane(plane, p);
-      return ok ? p : orbitTarget.clone();
-    }
-
-    // 轻拾取（用于：滚轮缩放；每帧最多一次，不做模型相交）
-    function pickPointOnTargetPlane(clientX, clientY){
-      const r = renderer.domElement.getBoundingClientRect();
-      mouse.set(
-        ((clientX - r.left)/r.width)*2 - 1,
-        -((clientY - r.top)/r.height)*2 + 1
-      );
-      rc.setFromCamera(mouse, camera);
-
-      const camDir = new THREE.Vector3();
-      camera.getWorldDirection(camDir);
-
-      const plane = new THREE.Plane().setFromNormalAndCoplanarPoint(camDir, orbitTarget);
-      const p = new THREE.Vector3();
-      const ok = rc.ray.intersectPlane(plane, p);
-      return ok ? p : orbitTarget.clone();
-    }
-
-    /* ========= ✅ 新增：河床显示切换（cloud.ply / cloud2.ply） ========= */
-    let bedOnly = false; // 默认未开启
-
-    function cloud2UrlFrom(plyUrl){
-      // 无论 plyUrl 是相对/绝对，都尽量稳地取“同文件夹下 cloud2.ply”
+    // ====== ✅ 新增：加载 xiansao.txt（100行*3列） ======
+    async function loadXiansaoPointsForModel(plyUrl){
+      const baseDir = baseDirFromPlyUrl(plyUrl);
+      const url = baseDir + 'xiansao.txt';
       try{
-        const u = new URL(plyUrl, location.href);
-        const path = u.pathname;
-        const i = path.lastIndexOf('/');
-        u.pathname = (i >= 0 ? path.slice(0, i+1) : '/') + 'cloud2.ply';
-        return u.href;
+        const r = await fetch(url + '?_=' + Date.now());
+        if(!r.ok) return null;
+        const text = (await r.text()).trim();
+        if(!text) return null;
+
+        const lines = text.split(/\r?\n/).map(s=>s.trim()).filter(Boolean);
+        const pts = [];
+        for(const line of lines){
+          // 支持：空格/Tab/逗号
+          const parts = line.split(/[,\s]+/).filter(Boolean);
+          if(parts.length < 3) continue;
+          const x = parseFloat(parts[0]);
+          const y = parseFloat(parts[1]);
+          const z = parseFloat(parts[2]);
+          if(Number.isFinite(x) && Number.isFinite(y) && Number.isFinite(z)){
+            pts.push(new THREE.Vector3(x,y,z));
+          }
+        }
+        return pts.length ? pts : null;
       }catch(_){
-        const i = String(plyUrl).lastIndexOf('/');
-        return (i >= 0 ? String(plyUrl).slice(0, i+1) : '') + 'cloud2.ply';
+        return null;
       }
     }
 
-    function getActivePlyUrl(){
-      if(!currentScene?.plyUrl) return null;
-      return bedOnly ? cloud2UrlFrom(currentScene.plyUrl) : currentScene.plyUrl;
+    function clearXiansao(){
+      if(!xiansaoGroup) return;
+      root.remove(xiansaoGroup);
+      xiansaoGroup.traverse(o=>{
+        if(o.geometry) o.geometry.dispose?.();
+        if(o.material) o.material.dispose?.();
+      });
+      xiansaoGroup = null;
     }
 
-    function syncBedOnlyBtn(){
-      bedOnlyBtn.setAttribute('aria-pressed', bedOnly ? 'true' : 'false');
-      bedOnlyBtn.textContent = bedOnly ? '显示河床+桥梁' : '仅显示河床';
-    }
-    syncBedOnlyBtn();
+    function showXiansao(pts){
+      clearXiansao();
+      if(!pts || pts.length < 2) return;
 
-    bedOnlyBtn.addEventListener('click', ()=>{
-      bedOnly = !bedOnly;
-      syncBedOnlyBtn();
-      const url = getActivePlyUrl();
-      if(url) loadPLY(url);
-    });
+      xiansaoGroup = new THREE.Group();
 
-    /* ========= SolidWorks 风格相机交互（不使用 OrbitControls） ========= */
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x8000ff }); // 紫色
+      const line = new THREE.Line(lineGeo, lineMat);
+      xiansaoGroup.add(line);
 
-    let isRotating=false, isPanning=false;
-    let activePointerId=null;
+      const ptsGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const size = sceneScale() * 0.008; // 点大小（可调）
+      const ptsMat = new THREE.PointsMaterial({ color: 0x8000ff, size });
+      const points = new THREE.Points(ptsGeo, ptsMat);
+      xiansaoGroup.add(points);
 
-    // 旋转中心（鼠标中键按下时取）
-    const rotatePivot = new THREE.Vector3();
-
-    // 旋转：用“相对按下瞬间”的总位移来算 yaw/pitch
-    const ROTATE_SPEED = 1.0;
-    const WORLD_UP = new THREE.Vector3(0,0,1);
-
-    let rotStartX=0, rotStartY=0;
-    const camPos0 = new THREE.Vector3();
-    const camQuat0 = new THREE.Quaternion();
-    const right0 = new THREE.Vector3();
-    const tmpRight = new THREE.Vector3();
-    const qYaw = new THREE.Quaternion();
-    const qPitch = new THREE.Quaternion();
-    const qRot = new THREE.Quaternion();
-    const offset = new THREE.Vector3();
-
-    // 平移（右键）
-    let lastX=0, lastY=0;
-
-    function applyRotationFromStart(clientX, clientY){
-      const el = renderer.domElement;
-      const w = el.clientWidth || 1;
-      const h = el.clientHeight || 1;
-
-      const dx = clientX - rotStartX;
-      const dy = clientY - rotStartY;
-
-      // ✅ 保持你当前已经正确的方向（上一版我们已改成 -dx/-dy）
-      const yaw   = (-dx / w) * Math.PI * 2 * ROTATE_SPEED;
-      const pitch = (-dy / h) * Math.PI * 2 * ROTATE_SPEED;
-
-      qYaw.setFromAxisAngle(WORLD_UP, yaw);
-      tmpRight.copy(right0).applyQuaternion(qYaw).normalize();
-      qPitch.setFromAxisAngle(tmpRight, pitch);
-
-      qRot.copy(qYaw).multiply(qPitch);
-
-      offset.copy(camPos0).sub(rotatePivot).applyQuaternion(qRot);
-      camera.position.copy(rotatePivot).add(offset);
-
-      camera.quaternion.copy(qRot).multiply(camQuat0);
-      camera.quaternion.normalize();
-      camera.updateMatrixWorld();
-    }
-
-    function applyPan(dx, dy){
-      const hh = (renderer.domElement.clientHeight || 1);
-
-      const dist = Math.max(0.0001, camera.position.distanceTo(orbitTarget));
-      const vFov = THREE.MathUtils.degToRad(camera.fov);
-      const worldPerPixel = 2 * dist * Math.tan(vFov/2) / hh;
-
-      const right = new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion).normalize();
-      const up    = new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion).normalize();
-
-      const pan = new THREE.Vector3();
-      pan.addScaledVector(right, -dx * worldPerPixel);
-      pan.addScaledVector(up,    dy * worldPerPixel);
-
-      camera.position.add(pan);
-      orbitTarget.add(pan);
-      rotatePivot.add(pan);
-      camera.updateMatrixWorld();
-    }
-
-    renderer.domElement.addEventListener('pointerdown', (e)=>{
-      if (e.pointerType !== 'mouse') return;
-
-      // 中键：旋转
-      if (e.button === 1){
-        e.preventDefault(); e.stopPropagation();
-        activePointerId = e.pointerId;
-        renderer.domElement.setPointerCapture(activePointerId);
-
-        isRotating = true; isPanning = false;
-
-        rotStartX = e.clientX; rotStartY = e.clientY;
-
-        rotatePivot.copy(pickPointFromEvent(e));
-        orbitTarget.copy(rotatePivot);
-
-        camPos0.copy(camera.position);
-        camQuat0.copy(camera.quaternion);
-        right0.set(1,0,0).applyQuaternion(camQuat0).normalize();
-        return;
-      }
-
-      // 右键：平移
-      if (e.button === 2){
-        e.preventDefault(); e.stopPropagation();
-        activePointerId = e.pointerId;
-        renderer.domElement.setPointerCapture(activePointerId);
-
-        isPanning = true; isRotating = false;
-        lastX = e.clientX; lastY = e.clientY;
-        return;
-      }
-    }, true);
-
-    renderer.domElement.addEventListener('pointermove', (e)=>{
-      if (activePointerId == null || e.pointerId !== activePointerId) return;
-
-      if (isRotating){
-        applyRotationFromStart(e.clientX, e.clientY);
-        return;
-      }
-
-      if (isPanning){
-        const dx = e.clientX - lastX;
-        const dy = e.clientY - lastY;
-        lastX = e.clientX; lastY = e.clientY;
-        applyPan(dx, dy);
-        return;
-      }
-    }, true);
-
-    function endPointer(e){
-      if (activePointerId == null || e.pointerId !== activePointerId) return;
-      try{ renderer.domElement.releasePointerCapture(activePointerId); }catch(_){}
-      activePointerId = null;
-      isRotating = false;
-      isPanning = false;
-    }
-    renderer.domElement.addEventListener('pointerup', endPointer, true);
-    renderer.domElement.addEventListener('pointercancel', endPointer, true);
-
-    /* ✅ 缩放：wheel 合并到每帧一次 + 轻拾取（不卡） */
-    const ZOOM_SPEED = 0.0016;
-
-    let wheelRAF = 0;
-    let wheelDeltaAcc = 0;
-    let wheelClientX = 0;
-    let wheelClientY = 0;
-
-    function applyWheelZoom(){
-      wheelRAF = 0;
-
-      const delta = wheelDeltaAcc;
-      wheelDeltaAcc = 0;
-
-      const zoomPoint = pickPointOnTargetPlane(wheelClientX, wheelClientY);
-      orbitTarget.copy(zoomPoint);
-
-      let scale = Math.exp(delta * ZOOM_SPEED);
-      scale = Math.min(1.25, Math.max(0.80, scale));
-
-      const v = camera.position.clone().sub(zoomPoint);
-      const curLen = v.length();
-      const minLen = Math.max(0.02, sceneScale()*0.0005);
-      const nextLen = curLen * scale;
-      if (nextLen < minLen) return;
-
-      v.multiplyScalar(scale);
-      camera.position.copy(zoomPoint.clone().add(v));
-      camera.updateMatrixWorld();
-    }
-
-    renderer.domElement.addEventListener('wheel', (e)=>{
-      e.preventDefault();
-
-      wheelDeltaAcc += e.deltaY;
-      wheelClientX = e.clientX;
-      wheelClientY = e.clientY;
-
-      if (!wheelRAF) wheelRAF = requestAnimationFrame(applyWheelZoom);
-    }, { passive:false });
-
-    /* ========= 业务逻辑（原有） ========= */
-
-    function makeMarker(color){
-      const s=sceneScale()*0.012;
-      const g=new THREE.SphereGeometry(s,16,16);
-      const m=new THREE.MeshBasicMaterial({color});
-      const o=new THREE.Mesh(g,m);
-      const edge=new THREE.Mesh(
-        new THREE.SphereGeometry(s*1.35,16,16),
-        new THREE.MeshBasicMaterial({color:0xffffff,opacity:.85,transparent:true})
-      );
-      const grp=new THREE.Group(); grp.add(edge); grp.add(o); return grp;
-    }
-
-    function makeMeasureLine(a,b){
-      const geo=new THREE.BufferGeometry().setFromPoints([a,b]);
-      const mat=new THREE.LineBasicMaterial({color:0x00e0ff,linewidth:2,transparent:true,opacity:.95});
-      return new THREE.Line(geo,mat);
-    }
-
-    function updateMeasureLine(){
-      if(measureLine&&measureA&&measureB){
-        const p=measureLine.geometry.attributes.position.array;
-        p[0]=measureA.x;p[1]=measureA.y;p[2]=measureA.z;
-        p[3]=measureB.x;p[4]=measureB.y;p[5]=measureB.z;
-        measureLine.geometry.attributes.position.needsUpdate=true;
-        measureLine.geometry.computeBoundingSphere?.();
-      }
-    }
-
-    function fitObject(obj){
-      const b=new THREE.Box3().setFromObject(obj);
-      const s=b.getSize(new THREE.Vector3());
-      const c=b.getCenter(new THREE.Vector3());
-      orbitTarget.copy(c);
-
-      const md=Math.max(s.x,s.y,s.z)||1;
-      const dist=md/(2*Math.tan(Math.PI*camera.fov/360));
-      const dir = new THREE.Vector3(-1, 1, 0.5).normalize();
-      camera.position.copy(c.clone().add(dir.multiplyScalar(dist*0.8)));
-
-      camera.near=Math.max(0.01,dist/1000);
-      camera.far=dist*10000;
-      camera.updateProjectionMatrix();
-
-      camera.up.set(0,0,1);
-      lookAtTarget();
-    }
-
-    function clearMeasure(){
-      measureA=measureB=null;
-      if(measureLine){root.remove(measureLine);measureLine.geometry.dispose();measureLine.material.dispose();measureLine=null;}
-      if(measureAMarker){root.remove(measureAMarker);measureAMarker=null;}
-      if(measureBMarker){root.remove(measureBMarker);measureBMarker=null;}
-    }
-
-    function clearPick(){
-      if(pickMarker){root.remove(pickMarker);pickMarker=null;}
+      root.add(xiansaoGroup);
     }
 
     function clearScene(){
@@ -730,311 +249,192 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
         currentObj.material?.dispose?.();
         currentObj=null;
       }
-      clearMeasure();clearPick();
-      hud.textContent='提示：启用“拾取”或“测距”后，在模型上点击。';
-      /* ✅ 清场时也隐藏文字 */
-      setSonarLabelsVisible(false);
+      clearMeasure();
+      clearXiansao();             // ✅ 新增：清掉线扫
+      coordDelta.set(0,0,0);      // ✅ 新增：复位增量（避免失败加载沿用旧值）
+      hud.textContent = '提示：启用“拾取”或“测距”后，在模型上点击。';
     }
 
-    function makePoints(geo){
-      const hasColor=!!geo.getAttribute('color');
-      const mat=new THREE.PointsMaterial({size:parseFloat(pointSize.value),vertexColors:hasColor});
-      return new THREE.Points(geo,mat);
-    }
-
-    function makeMesh(geo){
-      if(geo.index) geo=geo.toNonIndexed();
-      geo.computeVertexNormals?.();
-      const mat=new THREE.MeshLambertMaterial({vertexColors:true,side:THREE.DoubleSide});
-      return new THREE.Mesh(geo,mat);
-    }
-
-    // 深度放大（Z 轴）
-    let currentZ = 1;
-    function applyZScale(v){
-      currentZ = v;
-      if(currentObj){ currentObj.scale.set(1, 1, v); }
-    }
-
-    /* 图例 */
-    const legendCv=document.getElementById('legend');
-    const lctx=legendCv.getContext('2d');
-    const ticksEl=document.getElementById('legendTicks');
-
-    let legendSpec = {
-      min:-10.0, max:-4.0,
-      colors: ['#0010a8','#123fdf','#1491ff','#18cfff','#18fffb','#55ff13','#c7ff00','#ffd200','#ff7a00','#e10000']
-    };
-
-    function drawLegendDiscrete(){
-      const n=legendSpec.colors.length, w=legendCv.width, h=legendCv.height, seg=h/n;
-      lctx.clearRect(0,0,w,h);
-      for(let i=0;i<n;i++){
-        const y=h - (i+1)*seg;
-        lctx.fillStyle=legendSpec.colors[i];
-        lctx.fillRect(0, y, w, seg);
-        lctx.strokeStyle="#888"; lctx.lineWidth=1; lctx.strokeRect(0, y, w, seg);
-      }
-      ticksEl.innerHTML='';
-      const ticks=10, top=legendSpec.max, bot=legendSpec.min;
-      for(let i=0;i<ticks;i++){
-        const v = top - (i)*( (top-bot)/(ticks-1) );
-        const dd=document.createElement('div'); dd.textContent = v.toFixed(3); ticksEl.appendChild(dd);
-      }
-    }
-    drawLegendDiscrete();
-
-    async function tryLoadLegend(plyUrl){
-      try{
-        const u = new URL(plyUrl, location.href), name=u.pathname.split('/').pop(), base=name.replace(/\.ply$/i,'');
-        u.pathname = u.pathname.replace(name, base+'.legend.json');
-        const r = await fetch(u.href+'?_='+Date.now()); if(!r.ok) return;
-        const j = await r.json(); const s=j.legend||j;
-        if(s.min!=null && s.max!=null && Array.isArray(s.stops)){
-          const cols = s.stops.map(p=>p[1]);
-          legendSpec = {min:s.min, max:s.max, colors: cols};
-          drawLegendDiscrete();
-        }
-      }catch(_){}
+    function clearMeasure(){
+      measureA = measureB = null;
+      if(measureLine){ root.remove(measureLine); measureLine.geometry.dispose(); measureLine.material.dispose(); measureLine=null; }
     }
 
     async function loadPLY(url){
-      statusEl.textContent='加载中...';
-      progressWrap.style.display='block';
-      progressText.textContent='加载中…';
-      progressFill.style.width='0%';
-
+      currentPlyUrl = url; // ✅ 记录当前 url
+      status.textContent='加载中...';
       clearScene();
-      tryLoadLegend(url);
 
-      /* ✅ 加载开始先隐藏文字，加载成功后按 cloud/cloud2 决定显示 */
-      setSonarLabelsVisible(false);
+      // ✅ 并发读取：ΔxΔyΔz 与线扫点
+      const deltaPromise = loadCoordDeltaForModel(url);
+      const xiansaoPromise = loadXiansaoPointsForModel(url);
 
-      loader.load(url,(geo)=>{
-        geo.computeBoundingBox?.();
-        currentObj = asPoints? makePoints(geo): makeMesh(geo);
+      loader.load(url,(geometry)=>{
+        geometry.computeBoundingBox();
+        const hasColor = !!geometry.getAttribute('color');
+        const mat = pointMode.checked
+          ? new THREE.PointsMaterial({ size: parseFloat(pointSize.value), vertexColors: hasColor })
+          : new THREE.MeshBasicMaterial({ color:0xdddddd, wireframe:false });
+        currentObj = pointMode.checked ? new THREE.Points(geometry, mat) : new THREE.Mesh(geometry, mat);
+
         root.add(currentObj);
-
-        applyZScale(currentZ);
         fitObject(currentObj);
 
-        /* ✅ 只在 cloud.ply 时显示（cloud2.ply 不显示），且坐标来自同目录 shengna1/shengna2 文件 */
-        if(shouldShowSonarLabels(url)){
-          setSonarLabelsVisible(false);
-          loadSonarCoordsForModel(url).then((anyVisible)=>{
-            setSonarLabelsVisible(anyVisible);
-            updateSonarLabels();
-          });
-        }else{
-          setSonarLabelsVisible(false);
-        }
+        // ✅ 模型出来后再挂线扫（以及确保 coordDelta 已更新）
+        deltaPromise.then(()=>{ /* coordDelta 已更新 */ });
+        xiansaoPromise.then((pts)=>{ if(pts) showXiansao(pts); });
 
-        statusEl.textContent='加载完成';
-        progressFill.style.width='100%';
-        progressText.textContent='100%';
-        setTimeout(()=>{progressWrap.style.display='none';}, 400);
+        status.textContent='加载完成';
       },(xhr)=>{
-        if (xhr.total){
-          const pct = Math.min(99, Math.floor(xhr.loaded / xhr.total * 100));
-          progressFill.style.width = pct + '%';
-          progressText.textContent = pct + '%';
-          statusEl.textContent = '下载 ' + pct + '%';
-        }else{
-          progressText.textContent = '加载中…';
-          const cur = parseFloat(progressFill.style.width) || 0;
-          const nxt = (cur + 2) % 90;
-          progressFill.style.width = nxt + '%';
-        }
+        if(xhr.total) status.textContent = '下载 '+(xhr.loaded/xhr.total*100).toFixed(1)+'%';
       },(err)=>{
         console.error(err);
-        statusEl.textContent='加载失败';
-        progressText.textContent='加载失败';
-        setTimeout(()=>{progressWrap.style.display='none';}, 1200);
+        status.textContent='加载失败';
       });
     }
 
     pointSize.addEventListener('input',()=>{
-      if(currentObj&&currentObj.material&&currentObj.material.size!==undefined){
-        currentObj.material.size=parseFloat(pointSize.value);
+      if(currentObj && currentObj.material && currentObj.material.size!==undefined){
+        currentObj.material.size = parseFloat(pointSize.value);
       }
     });
 
-    function toggle(btn){btn.setAttribute('aria-pressed', btn.getAttribute('aria-pressed')==='true'?'false':'true');}
-    function isOn(btn){return btn.getAttribute('aria-pressed')==='true';}
-
-    modeBtn.addEventListener('click',()=>{
-      asPoints=!asPoints;
-      modeBtn.textContent=asPoints?'点云':'曲面';
-      const url = getActivePlyUrl();
-      if(currentObj && url) loadPLY(url);
+    // 点模式切换：重新加载当前模型（并自动带上 Δ / 线扫）
+    pointMode.addEventListener('change', ()=>{
+      if(currentPlyUrl) loadPLY(currentPlyUrl);
     });
 
-    pickBtn.addEventListener('click',()=>{
-      toggle(pickBtn);
-      pickBtn.textContent = isOn(pickBtn) ? '拾取✓' : '拾取';
-      if(isOn(pickBtn)) {measureBtn.setAttribute('aria-pressed','false'); measureBtn.textContent='测距';}
-    });
-
-    measureBtn.addEventListener('click',()=>{
-      toggle(measureBtn);
-      measureBtn.textContent = isOn(measureBtn) ? '测距✓' : '测距';
-      if(isOn(measureBtn)) {pickBtn.setAttribute('aria-pressed','false'); pickBtn.textContent='拾取';}
-    });
-
-    clearBtn.addEventListener('click',()=>{
-      clearMeasure(); clearPick();
-      hud.textContent='已清除测距/拾取结果';
-    });
-
-    zScaleEl.addEventListener('input', ()=>{
-      const v = parseFloat(zScaleEl.value) || 1;
-      applyZScale(v);
-      zScaleLabel.textContent = '×' + v.toFixed(1);
-    });
-    applyZScale(parseFloat(zScaleEl.value) || 1);
-
-    /* 主画布点击：拾取/测距 */
-    renderer.domElement.addEventListener('pointerdown',(e)=>{
-      if (e.pointerType === 'mouse' && e.button !== 0) return;
-
+    // ==== 拾取 & 测距 ====
+    renderer.domElement.addEventListener('pointerdown', (e)=>{
       if(!currentObj) return;
-      if(!isOn(pickBtn)&&!isOn(measureBtn)) return;
+      if(!isOn(pickBtn) && !isOn(measureBtn)) return;
 
-      const r=renderer.domElement.getBoundingClientRect();
-      const mm=new THREE.Vector2(
-        ((e.clientX-r.left)/r.width)*2-1,
-        -((e.clientY-r.top)/r.height)*2+1
-      );
+      const rect = renderer.domElement.getBoundingClientRect();
+      mouse.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
+      mouse.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(mouse, camera);
 
-      const rcc=new THREE.Raycaster();
-      rcc.setFromCamera(mm,camera);
-      rcc.params.Points.threshold = sceneScale() * 0.01;
+      let inter = null;
+      if(currentObj.type === 'Points'){
+        // 对点云进行近邻拾取
+        raycaster.params.Points.threshold = sceneScale() * 0.01; // ✅ 让点云更容易点到
+        const pts = raycaster.intersectObject(currentObj, true);
+        if(pts.length) inter = pts[0];
+      }else{
+        const hits = raycaster.intersectObject(currentObj, true);
+        if(hits.length) inter = hits[0];
+      }
+      if(!inter) return;
 
-      const h=rcc.intersectObject(currentObj,true);
-      if(!h.length) return;
-      const p=h[0].point.clone();
+      const p = inter.point.clone();
+
+      // ✅ 显示用坐标（加增量）
+      const px = p.x + coordDelta.x;
+      const py = p.y + coordDelta.y;
+      const pz = p.z + coordDelta.z;
 
       if(isOn(pickBtn)){
-        clearPick();
-        pickMarker=makeMarker(0x9a4dff);
-        pickMarker.position.copy(p);
-        root.add(pickMarker);
-        hud.textContent=`拾取\nX:${p.x.toFixed(3)}\nY:${p.y.toFixed(3)}\nZ:${p.z.toFixed(3)}`;
+        hud.textContent = `拾取\nX: ${px.toFixed(3)}\nY: ${py.toFixed(3)}\nZ: ${pz.toFixed(3)}`;
       }
 
       if(isOn(measureBtn)){
         if(!measureA){
-          measureA=p.clone();
-          if(measureAMarker) root.remove(measureAMarker);
-          measureAMarker=makeMarker(0x00e0ff);
-          measureAMarker.position.copy(measureA);
-          root.add(measureAMarker);
-          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`;
-        } else if(!measureB){
-          measureB=p.clone();
-          if(measureBMarker) root.remove(measureBMarker);
-          measureBMarker=makeMarker(0xff6a00);
-          measureBMarker.position.copy(measureB);
-          root.add(measureBMarker);
+          measureA = p.clone();
+          const ax = measureA.x + coordDelta.x;
+          const ay = measureA.y + coordDelta.y;
+          const az = measureA.z + coordDelta.z;
+          hud.textContent = `测距(A)\nX: ${ax.toFixed(3)} Y: ${ay.toFixed(3)} Z: ${az.toFixed(3)}`;
+        }else if(!measureB){
+          measureB = p.clone();
 
-          if(!measureLine){ measureLine=makeMeasureLine(measureA,measureB); root.add(measureLine); }
-          else updateMeasureLine();
+          // ✅ Δ 使用原始坐标（真实距离/差值不受显示增量影响）
+          const dx = measureB.x - measureA.x;
+          const dy = measureB.y - measureA.y;
+          const dz = measureB.z - measureA.z;
+          const d = Math.sqrt(dx*dx+dy*dy+dz*dz);
 
-          const dx=measureB.x-measureA.x, dy=measureB.y-measureA.y, dz=measureB.z-measureA.z;
-          const D=Math.sqrt(dx*dx+dy*dy+dz*dz);
-          hud.textContent=`ΔX:${dx.toFixed(3)}\nΔY:${dy.toFixed(3)}\nΔZ:${dz.toFixed(3)}\nD:${D.toFixed(3)}`;
-        } else {
+          // ✅ A/B 坐标显示为加过 Δ 的
+          const ax = measureA.x + coordDelta.x;
+          const ay = measureA.y + coordDelta.y;
+          const az = measureA.z + coordDelta.z;
+
+          const bx = measureB.x + coordDelta.x;
+          const by = measureB.y + coordDelta.y;
+          const bz = measureB.z + coordDelta.z;
+
+          hud.textContent =
+            `测距 A→B\n` +
+            `A: (${ax.toFixed(3)}, ${ay.toFixed(3)}, ${az.toFixed(3)})\n` +
+            `B: (${bx.toFixed(3)}, ${by.toFixed(3)}, ${bz.toFixed(3)})\n` +
+            `ΔX: ${dx.toFixed(3)}\nΔY: ${dy.toFixed(3)}\nΔZ: ${dz.toFixed(3)}\nD : ${d.toFixed(3)}`;
+
+          // 画线（用原始点位画，和模型对齐）
+          const geo = new THREE.BufferGeometry().setFromPoints([measureA, measureB]);
+          const mat = new THREE.LineBasicMaterial({ color: 0x00e0ff });
+          measureLine = new THREE.Line(geo, mat);
+          root.add(measureLine);
+        }else{
+          // 第三次点击：重新开始
           clearMeasure();
-          measureA=p.clone();
-          measureAMarker=makeMarker(0x00e0ff);
-          measureAMarker.position.copy(measureA);
-          root.add(measureAMarker);
-          hud.textContent=`测距(A)\nX:${measureA.x.toFixed(3)}\nY:${measureA.y.toFixed(3)}\nZ:${measureA.z.toFixed(3)}`;
+          measureA = p.clone();
+          const ax = measureA.x + coordDelta.x;
+          const ay = measureA.y + coordDelta.y;
+          const az = measureA.z + coordDelta.z;
+          hud.textContent = `测距(A)\nX: ${ax.toFixed(3)} Y: ${ay.toFixed(3)} Z: ${az.toFixed(3)}`;
         }
       }
     });
 
-    /* 下拉数据 */
-    let bridges=[], scenes=[], currentScene=null;
+    pickBtn.addEventListener('click',()=>{
+      setToggle(pickBtn, !isOn(pickBtn));
+      if(isOn(pickBtn)) setToggle(measureBtn,false);
+    });
 
-    function getParam(name){ return new URLSearchParams(location.search).get(name); }
+    measureBtn.addEventListener('click',()=>{
+      setToggle(measureBtn, !isOn(measureBtn));
+      if(isOn(measureBtn)) setToggle(pickBtn,false);
+    });
 
+    clearBtn.addEventListener('click', ()=>{
+      clearMeasure();
+      hud.textContent='已清除测距/拾取结果';
+    });
+
+    // ==== index.json 下拉 ====
+    let bridges=[], scenes=[];
     async function loadIndex(){
-      const res = await fetch('./index.json?_=' + Date.now());
+      const res = await fetch('./index.json?_='+Date.now());
       const data = await res.json();
-      bridges = data.bridges || [];
-      scenes  = data.scenes  || [];
-
-      const bridgeSel = document.getElementById('bridgeSel');
-      const dateSel   = document.getElementById('dateSel');
-
-      bridgeSel.innerHTML = bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
-
-      const sceneId = getParam('scene');
-      if (sceneId) {
-        currentScene = scenes.find(s => s.id === sceneId) || null;
-        if (currentScene) {
-          bridgeSel.value = currentScene.bridgeId;
-          const sameBridgeScenes = scenes.filter(s => s.bridgeId === currentScene.bridgeId);
-          dateSel.innerHTML = sameBridgeScenes.map(s => `<option value="${s.id}">${s.date}</option>`).join('');
-          dateSel.value = currentScene.id;
-
-          const url = getActivePlyUrl();
-          if (url) loadPLY(url);
-          return;
-        }
-      }
-
+      bridges = data.bridges || []; scenes = data.scenes || [];
+      document.getElementById('bridgeSel').innerHTML = bridges.map(b=>`<option value="${b.id}">${b.name}</option>`).join('');
       fillDates();
-      const id = dateSel.value;
-      currentScene = scenes.find(x => x.id === id);
-      const url = getActivePlyUrl();
-      if (url) loadPLY(url);
     }
-
     function fillDates(){
       const bid=document.getElementById('bridgeSel').value;
       const arr=scenes.filter(s=>s.bridgeId===bid);
-      document.getElementById('dateSel').innerHTML=arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');
+      document.getElementById('dateSel').innerHTML = arr.map(s=>`<option value="${s.id}">${s.date}</option>`).join('');
     }
-
-    document.getElementById('bridgeSel').addEventListener('change',()=>{
-      fillDates();
+    document.getElementById('bridgeSel').addEventListener('change', fillDates);
+    document.getElementById('loadBtn').addEventListener('click', ()=>{
       const id=document.getElementById('dateSel').value;
-      currentScene=scenes.find(x=>x.id===id);
+      const s=scenes.find(x=>x.id===id);
+      if(s) loadPLY(s.plyUrl);
     });
 
-    document.getElementById('dateSel').addEventListener('change',()=>{
-      const id=document.getElementById('dateSel').value;
-      currentScene=scenes.find(x=>x.id===id);
-    });
-
-    document.getElementById('loadBtn').addEventListener('click',()=>{
-      const id=document.getElementById('dateSel').value;
-      currentScene=scenes.find(x=>x.id===id);
-      const url = getActivePlyUrl();
-      if(url) loadPLY(url);
-    });
-
-    /* 自适应 */
+    // ==== 自适应 & 渲染循环 ====
     window.addEventListener('resize',()=>{
-      camera.aspect=window.innerWidth/(window.innerHeight-128);
+      camera.aspect = window.innerWidth/(window.innerHeight-60);
       camera.updateProjectionMatrix();
-      renderer.setSize(window.innerWidth, window.innerHeight-128);
-      axisRenderer.setSize(160,160);
+      renderer.setSize(window.innerWidth, window.innerHeight-60);
     });
 
-    /* 渲染循环 */
-    (function ani(){
-      requestAnimationFrame(ani);
-
-      /* ✅ 每帧更新文字位置（字号恒定、不旋转） */
-      updateSonarLabels();
-
+    (function animate(){
+      requestAnimationFrame(animate);
+      controls.update();
       renderer.render(scene,camera);
-      mini.quaternion.copy(camera.quaternion);
-      axisCamera.lookAt(0,0,0);
-      axisRenderer.render(axisScene,axisCamera);
+      // 小坐标轴镜像主相机方向（取主相机的旋转的逆）
+      axisCamera.quaternion.copy(camera.quaternion).invert();
+      axisRenderer.render(axisScene, axisCamera);
     })();
 
     loadIndex();
