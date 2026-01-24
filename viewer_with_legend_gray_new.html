@@ -441,7 +441,7 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
       //xiansaoGroup.add(new THREE.Line(lineGeo, lineMat));
 
       const ptsGeo = new THREE.BufferGeometry().setFromPoints(pts);
-      const size = sceneScale() * 0.008; // 相对场景大小
+      const size = sceneScale() * 0.0010; // 相对场景大小
       const ptsMat = new THREE.PointsMaterial({ color: 0x8000ff, size });
       xiansaoGroup.add(new THREE.Points(ptsGeo, ptsMat));
 
