@@ -432,18 +432,42 @@ select{min-width:140px} button.primary{background:var(--primary);border-color:va
 
     function showXiansao(pts){
       clearXiansao();
-      if(!pts || pts.length < 1) return;
+      if(!pts || pts.length === 0) return;
 
       xiansaoGroup = new THREE.Group();
 
-      //const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
-      //const lineMat = new THREE.LineBasicMaterial({ color: 0x8000ff }); // 紫色
-      //xiansaoGroup.add(new THREE.Line(lineGeo, lineMat));
+  /* =========================
+     情况 1：只有 1 个线扫点
+     → 用和拾取一样的高亮球
+     ========================= */
+      if(pts.length === 1){
+        const marker = makeMarker(0x9a4dff); // ✅ 和拾取同色
+        marker.position.copy(pts[0]);
+        xiansaoGroup.add(marker);
+        root.add(xiansaoGroup);
+        return;
+      }
 
+  /* =========================
+     情况 2：≥2 个点
+     → 紫色线 + 紫色点
+     ========================= */
+
+  // 线
+      const lineGeo = new THREE.BufferGeometry().setFromPoints(pts);
+      const lineMat = new THREE.LineBasicMaterial({ color: 0x8000ff });
+      const line = new THREE.Line(lineGeo, lineMat);
+      xiansaoGroup.add(line);
+
+  // 点
       const ptsGeo = new THREE.BufferGeometry().setFromPoints(pts);
-      const size = sceneScale() * 0.0010; // 相对场景大小
-      const ptsMat = new THREE.PointsMaterial({ color: 0x8000ff, size });
-      xiansaoGroup.add(new THREE.Points(ptsGeo, ptsMat));
+      const size = sceneScale() * 0.0008; // ← 你可在这微调
+      const ptsMat = new THREE.PointsMaterial({
+        color: 0x8000ff,
+        size
+      });
+      const points = new THREE.Points(ptsGeo, ptsMat);
+      xiansaoGroup.add(points);
 
       root.add(xiansaoGroup);
     }
